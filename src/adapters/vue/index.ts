@@ -33,6 +33,10 @@ export interface UseGridConfig<Row> {
   minColumnWidth?: number
   rowKey?: (row: Row, index: number) => string | number
   onColumnResize?: (key: ColumnKey, width: number) => void
+  onRowDragStart?: (index: number) => void
+  onRowDragMove?: (from: number, to: number) => void
+  /** Fires on release. Reordering the data is up to the caller. */
+  onRowDrop?: (from: number, to: number) => void
 }
 
 export interface VisibleRow<Row> {
@@ -127,6 +131,9 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
         contentHeight.value = grid.value?.contentHeight ?? contentHeight.value
       },
       onColumnResize: config.onColumnResize,
+      onRowDragStart: config.onRowDragStart,
+      onRowDragMove: config.onRowDragMove,
+      onRowDrop: config.onRowDrop,
     })
 
     grid.value = instance

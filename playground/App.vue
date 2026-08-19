@@ -1,7 +1,9 @@
 <template>
   <div>
     <p data-testid="stats">
-      rows in DOM: {{ visibleRows.length }} / {{ rows.length }}
+      rows in DOM: {{ visibleRows.length }} / {{ rows.length }} ·
+      first: <span data-testid="first-row">{{ rows[0]?.name }}</span> ·
+      drag: <span data-testid="drag-log">{{ dragLog }}</span>
     </p>
 
     <div ref="rootRef" class="grid">
@@ -36,6 +38,12 @@
             :ref="(el) => registerCell(el, row.index, col.key)"
             class="grid__td"
           >
+            <span
+              v-if="col.key === 'id'"
+              class="grid__handle"
+              :data-testid="`handle-${row.index}`"
+              @pointerdown="onHandleDown(row.index, $event)"
+            >=</span>
             {{ row.data[col.key] }}
           </div>
         </div>
@@ -53,6 +61,8 @@
 </template>
 
 <script lang="ts" setup>
+import { reactive, ref } from 'vue'
+
 import { useGrid } from '../src/adapters/vue/index'
 import type { ColumnDef } from '../src/core/index'
 
@@ -67,14 +77,27 @@ const columns: ColumnDef[] = [
   { key: 'state', width: 100, pinned: 'right' },
 ]
 
-const rows: Row[] = Array.from({ length: 5_000 }, (_, index) => ({
+const rows = reactive<Row[]>(Array.from({ length: 5_000 }, (_, index) => ({
   id: String(index),
   name: `name ${index}`,
   city: `city ${index % 50}`,
   note: `note for row ${index}`,
   tag: `tag ${index % 7}`,
   state: index % 2 ? 'on' : 'off',
-}))
+})))
+
+const dragLog = ref('idle')
+
+function onHandleDown(index: number, event: PointerEvent) {
+  grid.value?.startRowDrag(index, event)
+}
+
+/** Reordering the data is the caller's job: the engine only reports indices. */
+function moveRow(from: number, to: number) {
+  dragLog.value = `${from}->${to}`
+  const [moved] = rows.splice(from, 1)
+  if (moved) rows.splice(to, 0, moved)
+}
 
 const {
   grid,
@@ -94,6 +117,8 @@ const {
   rows: () => rows,
   rowHeight: () => 28,
   rowKey: (_row, index) => index,
+  onRowDragStart: (index) => { dragLog.value = `start ${index}` },
+  onRowDrop: moveRow,
 })
 </script>
 
@@ -147,6 +172,25 @@ body {
   left: 0;
   right: 0;
   border-bottom: 1px solid #eee;
+}
+
+.grid__handle {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  background: #ddd;
+  border-radius: 3px;
+  cursor: grab;
+  color: #666;
+  user-select: none;
+}
+
+.grid__tr[data-dragging] {
+  z-index: 2;
+  background: #fffbe6;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 20%);
 }
 
 .grid__resizer {

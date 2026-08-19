@@ -51,6 +51,8 @@ grid.registerCell(element, rowIndex, 'name')
 | `registerHeaderCell` / `registerRow` / `registerCell` | hand a node over, or pass `null` to drop it |
 | `setColumns` / `setRowCount` | structure changed |
 | `startColumnResize(key, event)` | begin a drag on a column edge |
+| `startRowDrag(index, event)` | begin dragging a row, reported through `onRowDrop` |
+| `setRowHeight(index, height)` | correct one row after measuring it |
 | `scrollToRow(index)` | move the viewport |
 | `getColumnWidths()` | current widths, for persisting them |
 | `layout` / `range` / `contentWidth` / `contentHeight` | current geometry |
@@ -121,7 +123,22 @@ const {
 Vue decides which rows and columns exist; the engine places them. Nodes travel through ref
 callbacks, so a re-render never leaves stale positions behind.
 
-A React adapter is planned along the same lines: the core knows nothing about frameworks.
+## Row reordering
+
+```ts
+createGrid({
+  ...,
+  onRowDrop: (from, to) => moveRow(from, to),   // reordering the data is yours
+})
+
+grid.startRowDrag(index, pointerEvent)          // from a drag handle
+```
+
+While a row is dragged the engine moves it under the pointer, opens a gap at the drop
+position and scrolls when the pointer nears an edge. The dragged row carries a
+`data-dragging` attribute so it can be styled. Drop indices are reported the way an array
+behaves after a splice, so `rows.splice(to, 0, rows.splice(from, 1)[0])` is all the caller
+has to do.
 
 ## Markup contract
 

@@ -64,9 +64,10 @@ describe('Grid', () => {
     h.horizontalScrollbar!.scrollLeft = 30
     h.horizontalScrollbar!.dispatchEvent(new Event('scroll'))
 
-    // The container shifts by -30, so the pinned column cancels it out.
+    // The container shifts by -30, so the pinned column cancels it out,
+    // while the flow starts after the pinned zone and moves with the content.
     expect(pinned.style.transform).toBe('translateX(30px)')
-    expect(flowing.style.transform).toBe('translateX(0px)')
+    expect(flowing.style.transform).toBe('translateX(60px)')
     expect(h.body.style.transform).toBe('translateX(-30px)')
   })
 
@@ -118,6 +119,39 @@ describe('Grid', () => {
     window.dispatchEvent(new PointerEvent('pointerup'))
 
     expect(onColumnResize).toHaveBeenCalledWith('a', 125)
+  })
+
+  it('drags a row and reports where it landed', () => {
+    const onRowDrop = vi.fn()
+    harness = createHarness()
+    const grid = createGrid({
+      ...harness,
+      columns: [{ key: 'a', width: 100 }],
+      rowHeight: 20,
+      rowCount: 10,
+      onRowDrop,
+    })
+
+    const dragged = harness.row(0)
+    const neighbour = harness.row(1)
+    grid.registerRow(dragged, 0)
+    grid.registerRow(neighbour, 1)
+
+    const top = harness.body.getBoundingClientRect().top
+    grid.startRowDrag(0, new PointerEvent('pointerdown', { clientY: top + 5 }))
+    expect(grid.draggingRow).toBe(0)
+
+    // Pointer sits in the lower half of row 2.
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: top + 55 }))
+
+    expect(dragged.hasAttribute('data-dragging')).toBe(true)
+    expect(neighbour.style.transform).toBe('translateY(0px)')
+
+    window.dispatchEvent(new PointerEvent('pointerup'))
+
+    expect(onRowDrop).toHaveBeenCalledWith(0, 2)
+    expect(grid.draggingRow).toBeNull()
+    expect(dragged.hasAttribute('data-dragging')).toBe(false)
   })
 
   it('stops listening after destroy', () => {

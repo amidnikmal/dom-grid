@@ -1,6 +1,13 @@
 import { computeLayout, DEFAULT_MIN_COLUMN_WIDTH } from './geometry'
 import { NodeRegistry } from './registry'
-import { type RowHeightSource,RowMetrics } from './rows'
+import {
+  autoScrollSpeed,
+  type DropTarget,
+  dropTargetAt,
+  reorderShift,
+  resolveDropIndex,
+} from './rowDrag'
+import { type RowHeightSource, RowMetrics } from './rows'
 import type {
   ColumnDef,
   ColumnKey,
@@ -36,6 +43,13 @@ export class Grid {
   private viewportWidth = 0
   private viewportHeight = 0
   private resizeSession: { key: ColumnKey, startX: number, startWidth: number } | null = null
+  private dragSession: {
+    from: number
+    pointerY: number
+    offsetInRow: number
+    target: DropTarget
+  } | null = null
+  private autoScrollFrame = 0
 
   constructor(options: GridOptions) {
     this.options = options
@@ -64,7 +78,9 @@ export class Grid {
   }
 
   get contentWidth(): number {
-    return this.layoutValue.flowWidth
+    // Pinned zones sit above the flow, so the scrollable width has to include
+    // them: otherwise the last flow column can never be scrolled into view.
+    return this.layoutValue.leftWidth + this.layoutValue.flowWidth + this.layoutValue.rightWidth
   }
 
   get contentHeight(): number {
@@ -183,6 +199,92 @@ export class Grid {
     if (column) this.options.onColumnResize?.(session.key, column.width)
   }
 
+  /* row dragging */
+
+  get draggingRow(): number | null {
+    return this.dragSession?.from ?? null
+  }
+
+  /**
+   * Starts dragging a row. The engine moves the row under the pointer, opens a
+   * gap at the drop position and scrolls when the pointer nears an edge.
+   * Reordering the data itself is left to the caller via onRowDrop.
+   */
+  startRowDrag(index: number, event: PointerEvent): void {
+    const bodyTop = this.options.body.getBoundingClientRect().top
+    const rowTop = bodyTop + this.metrics.offsetOf(index) - this.scroll.scrollTop
+
+    this.dragSession = {
+      from: index,
+      pointerY: event.clientY,
+      offsetInRow: event.clientY - rowTop,
+      target: { index, half: 'top' },
+    }
+
+    event.preventDefault()
+    this.options.onRowDragStart?.(index)
+
+    window.addEventListener('pointermove', this.handleDragMove)
+    window.addEventListener('pointerup', this.handleDragEnd, { once: true })
+
+    this.apply()
+  }
+
+  private readonly handleDragMove = (event: PointerEvent): void => {
+    const session = this.dragSession
+    if (!session) return
+
+    session.pointerY = event.clientY
+
+    const rect = this.options.body.getBoundingClientRect()
+    const contentY = event.clientY - rect.top + this.scroll.scrollTop
+    const target = dropTargetAt(contentY, this.metrics)
+
+    if (target.index !== session.target.index || target.half !== session.target.half) {
+      session.target = target
+      this.options.onRowDragMove?.(session.from, resolveDropIndex(session.from, target, this.metrics.rowCount))
+    }
+
+    this.scheduleAutoScroll(rect.top, rect.bottom)
+    this.apply()
+  }
+
+  private readonly handleDragEnd = (): void => {
+    const session = this.dragSession
+    window.removeEventListener('pointermove', this.handleDragMove)
+    cancelAnimationFrame(this.autoScrollFrame)
+    this.autoScrollFrame = 0
+    this.dragSession = null
+
+    if (session) {
+      const to = resolveDropIndex(session.from, session.target, this.metrics.rowCount)
+      this.options.onRowDrop?.(session.from, to)
+    }
+
+    this.apply()
+  }
+
+  /** Autoscroll is inherently per-frame, so it is the one place using rAF. */
+  private scheduleAutoScroll(top: number, bottom: number): void {
+    if (this.autoScrollFrame) return
+
+    const step = () => {
+      const session = this.dragSession
+      const scrollbar = this.options.verticalScrollbar
+      if (!session || !scrollbar) {
+        this.autoScrollFrame = 0
+        return
+      }
+
+      const speed = autoScrollSpeed(session.pointerY, top, bottom)
+      if (speed !== 0) scrollbar.scrollTop += speed
+
+      this.autoScrollFrame = requestAnimationFrame(step)
+    }
+
+    this.autoScrollFrame = requestAnimationFrame(step)
+  }
+
   /* scrolling */
 
   private readonly handleScroll = (): void => {
@@ -257,7 +359,9 @@ export class Grid {
       return this.scroll.scrollLeft + zoneStart + column.left
     }
 
-    return column.left
+    // The flow starts after the left zone, so nothing hides underneath it
+    // while the table is scrolled to the very left.
+    return this.layoutValue.leftWidth + column.left
   }
 
   private applyCell(element: HTMLElement, key: ColumnKey): void {
@@ -267,6 +371,8 @@ export class Grid {
 
     element.style.transform = `translateX(${offset}px)`
     element.style.width = `${column.width}px`
+    // Pinned columns stay above the flow they overlap.
+    element.style.zIndex = column.pinned ? '1' : '0'
   }
 
   private applyHeaderCell(element: HTMLElement, key: ColumnKey): void {
@@ -274,12 +380,39 @@ export class Grid {
   }
 
   private applyRow(element: HTMLElement, index: number): void {
-    const top = this.metrics.offsetOf(index) - this.scroll.scrollTop
+    const base = this.metrics.offsetOf(index) - this.scroll.scrollTop
+    const top = base + this.dragOffsetOf(index, element)
+
     element.style.transform = `translateY(${top}px)`
     element.style.height = `${this.metrics.heightOf(index)}px`
   }
 
+  /** The dragged row follows the pointer, the rest step aside to open a gap. */
+  private dragOffsetOf(index: number, element: HTMLElement): number {
+    const session = this.dragSession
+    if (!session) {
+      element.removeAttribute('data-dragging')
+      return 0
+    }
+
+    if (index === session.from) {
+      element.setAttribute('data-dragging', '')
+
+      const rect = this.options.body.getBoundingClientRect()
+      const pointerTop = session.pointerY - rect.top - session.offsetInRow
+      return pointerTop - (this.metrics.offsetOf(index) - this.scroll.scrollTop)
+    }
+
+    element.removeAttribute('data-dragging')
+
+    const to = resolveDropIndex(session.from, session.target, this.metrics.rowCount)
+    return reorderShift(index, session.from, to, this.metrics.heightOf(session.from))
+  }
+
   destroy(): void {
+    cancelAnimationFrame(this.autoScrollFrame)
+    window.removeEventListener('pointermove', this.handleDragMove)
+    window.removeEventListener('pointerup', this.handleDragEnd)
     this.resizeObserver.disconnect()
     this.options.verticalScrollbar?.removeEventListener('scroll', this.handleScroll)
     this.options.horizontalScrollbar?.removeEventListener('scroll', this.handleScroll)
