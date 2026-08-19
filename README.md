@@ -55,6 +55,8 @@ grid.registerCell(element, rowIndex, 'name')
 | `setRowHeight(index, height)` | correct one row after measuring it |
 | `scrollToRow(index)` | move the viewport |
 | `getColumnWidths()` | current widths, for persisting them |
+| `getResizedWidths()` / `setResizedWidths()` | only the hand-resized ones, to save and restore |
+| `resetColumnWidths(key?)` | drop hand-resized widths |
 | `layout` / `range` / `contentWidth` / `contentHeight` | current geometry |
 | `destroy()` | detach every listener |
 

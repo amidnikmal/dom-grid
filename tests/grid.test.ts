@@ -248,3 +248,34 @@ describe('Grid regressions', () => {
     window.dispatchEvent(new PointerEvent('pointerup'))
   })
 })
+
+describe('resized widths', () => {
+  it('survive a structural column update', () => {
+    const { grid, harness: h } = setup()
+    const cell = h.headerCell('a')
+    grid.registerHeaderCell(cell, 'a')
+
+    grid.startColumnResize('a', new PointerEvent('pointerdown', { clientX: 0 }))
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 50 }))
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    expect(cell.style.width).toBe('150px')
+
+    // The caller re-renders columns, e.g. after toggling visibility elsewhere.
+    grid.setColumns([{ key: 'a', width: 100 }, { key: 'b', width: 200 }])
+
+    expect(cell.style.width).toBe('150px')
+    expect(grid.getResizedWidths()).toEqual({ a: 150 })
+  })
+
+  it('can be reset back to the definitions', () => {
+    const { grid, harness: h } = setup()
+    const cell = h.headerCell('a')
+    grid.registerHeaderCell(cell, 'a')
+
+    grid.setResizedWidths({ a: 300 })
+    expect(cell.style.width).toBe('300px')
+
+    grid.resetColumnWidths('a')
+    expect(cell.style.width).toBe('100px')
+  })
+})

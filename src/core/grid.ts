@@ -36,6 +36,12 @@ export class Grid {
   private readonly resizeObserver: ResizeObserver
 
   private columns: ColumnDef[]
+  /**
+   * Widths produced by dragging a column edge. Kept apart from the column
+   * definitions so that a structural update from the caller does not silently
+   * throw away what the user resized by hand.
+   */
+  private readonly widthOverrides = new Map<ColumnKey, number>()
   private readonly metrics: RowMetrics
   private layoutValue: GridLayout
   private rangeValue: RowRange = { start: 0, end: 0 }
@@ -151,6 +157,28 @@ export class Grid {
     return Object.fromEntries(this.layoutValue.columns.map((column) => [column.key, column.width]))
   }
 
+  /** Drops hand-resized widths, so columns fall back to their definitions. */
+  resetColumnWidths(key?: ColumnKey): void {
+    if (key === undefined) this.widthOverrides.clear()
+    else this.widthOverrides.delete(key)
+
+    this.updateLayout()
+    this.apply()
+  }
+
+  /** Widths that differ from the column definitions, for persisting them. */
+  getResizedWidths(): Record<ColumnKey, number> {
+    return Object.fromEntries(this.widthOverrides)
+  }
+
+  /** Restores widths saved earlier, e.g. from user settings. */
+  setResizedWidths(widths: Record<ColumnKey, number>): void {
+    Object.entries(widths).forEach(([key, width]) => this.widthOverrides.set(key, width))
+
+    this.updateLayout()
+    this.apply()
+  }
+
   scrollToRow(index: number): void {
     const scrollbar = this.options.verticalScrollbar
     if (scrollbar) scrollbar.scrollTop = this.metrics.offsetOf(index)
@@ -180,10 +208,7 @@ export class Grid {
     const minWidth = this.options.minColumnWidth ?? DEFAULT_MIN_COLUMN_WIDTH
     const width = Math.max(session.startWidth + (event.clientX - session.startX), minWidth)
 
-    this.columns = this.columns.map((column) =>
-      column.key === session.key ? { ...column, width } : column,
-    )
-
+    this.widthOverrides.set(session.key, width)
     this.updateLayout()
     this.apply()
   }
@@ -326,7 +351,14 @@ export class Grid {
   /* layout application */
 
   private computeLayout(): GridLayout {
-    return computeLayout(this.columns, this.viewportWidth, this.options.minColumnWidth)
+    const columns = this.widthOverrides.size
+      ? this.columns.map((column) => {
+          const width = this.widthOverrides.get(column.key)
+          return width === undefined ? column : { ...column, width }
+        })
+      : this.columns
+
+    return computeLayout(columns, this.viewportWidth, this.options.minColumnWidth)
   }
 
   private measureViewport(): void {
