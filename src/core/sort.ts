@@ -51,8 +51,20 @@ export class SortState {
       return this.entries
     }
 
-    const rest = this.entries.filter((entry) => entry.key !== key)
-    this.entries = next ? [...rest, { key, direction: next }] : rest
+    if (!next) {
+      this.entries = this.entries.filter((entry) => entry.key !== key)
+      return this.entries
+    }
+
+    // Flipping the direction keeps the column where it is: priority follows
+    // the order columns were added to the sort, not the latest click.
+    const existing = this.entries.findIndex((entry) => entry.key === key)
+    if (existing === -1) this.entries = [...this.entries, { key, direction: next }]
+    else {
+      this.entries = this.entries.map((entry) =>
+        entry.key === key ? { key, direction: next } : entry,
+      )
+    }
 
     return this.entries
   }

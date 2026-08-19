@@ -85,6 +85,18 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
   const hScrollRef = ref<HTMLElement>()
 
   const range = ref<RowRange>({ start: 0, end: 0 })
+
+  /**
+   * Ref callbacks fire before onMounted, so registrations that arrive while
+   * the engine does not exist yet are replayed once it does.
+   */
+  const pending: Array<(instance: Grid) => void> = []
+
+  const withGrid = (action: (instance: Grid) => void) => {
+    const instance = grid.value
+    if (instance) action(instance)
+    else pending.push(action)
+  }
   const contentWidth = ref(0)
 
   const contentHeight = ref(0)
@@ -130,6 +142,7 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
         range.value = next
         contentHeight.value = grid.value?.contentHeight ?? contentHeight.value
       },
+      onLayoutChange: syncSizes,
       onColumnResize: config.onColumnResize,
       onRowDragStart: config.onRowDragStart,
       onRowDragMove: config.onRowDragMove,
@@ -139,6 +152,9 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
     grid.value = instance
     range.value = instance.range
     syncSizes()
+
+    pending.forEach((action) => action(instance))
+    pending.length = 0
   })
 
   watch(config.columns, (columns) => {
@@ -171,9 +187,18 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
     visibleRows,
     contentWidth,
     contentHeight,
-    registerHeaderCell: (element, key) => grid.value?.registerHeaderCell(asElement(element), key),
-    registerRow: (element, index) => grid.value?.registerRow(asElement(element), index),
-    registerCell: (element, index, key) => grid.value?.registerCell(asElement(element), index, key),
+    registerHeaderCell: (element, key) => {
+      const node = asElement(element)
+      withGrid((instance) => instance.registerHeaderCell(node, key))
+    },
+    registerRow: (element, index) => {
+      const node = asElement(element)
+      withGrid((instance) => instance.registerRow(node, index))
+    },
+    registerCell: (element, index, key) => {
+      const node = asElement(element)
+      withGrid((instance) => instance.registerCell(node, index, key))
+    },
   }
 }
 

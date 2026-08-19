@@ -40,3 +40,17 @@ describe('SortState', () => {
     expect(sort.priorityOf('b')).toBe(1)
   })
 })
+
+describe('SortState priority', () => {
+  it('keeps a column in place when its direction flips', () => {
+    const sort = new SortState({ multiple: true })
+
+    sort.toggle('a')
+    sort.toggle('b')
+    sort.toggle('a')
+
+    expect(sort.directionOf('a')).toBe('desc')
+    expect(sort.priorityOf('a')).toBe(1)
+    expect(sort.priorityOf('b')).toBe(2)
+  })
+})

@@ -166,3 +166,85 @@ describe('Grid', () => {
     expect(row.style.transform).toBe('translateY(0px)')
   })
 })
+
+describe('Grid regressions', () => {
+  it('keeps a node registered when a stale ref callback passes null', () => {
+    const { grid, harness: h } = setup()
+    const cell = h.headerCell('a')
+
+    grid.registerHeaderCell(cell, 'a')
+    // Vue calls the previous ref callback with null after the new one ran.
+    grid.registerHeaderCell(null, 'a')
+
+    grid.setColumns([{ key: 'a', width: 150 }])
+
+    expect(cell.style.width).toBe('150px')
+  })
+
+  it('forgets a node once it really left the document', () => {
+    const { grid, harness: h } = setup()
+    const cell = h.headerCell('a')
+
+    grid.registerHeaderCell(cell, 'a')
+    cell.remove()
+    grid.registerHeaderCell(null, 'a')
+
+    grid.setColumns([{ key: 'a', width: 150 }])
+
+    expect(cell.style.width).toBe('100px')
+  })
+
+  it('reports layout changes, including during a resize drag', () => {
+    const onLayoutChange = vi.fn()
+    harness = createHarness()
+    const grid = createGrid({
+      ...harness,
+      columns: [{ key: 'a', width: 100 }],
+      rowHeight: 20,
+      rowCount: 10,
+      onLayoutChange,
+    })
+
+    grid.startColumnResize('a', new PointerEvent('pointerdown', { clientX: 0 }))
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 30 }))
+    window.dispatchEvent(new PointerEvent('pointerup'))
+
+    expect(onLayoutChange).toHaveBeenCalled()
+    expect(grid.contentWidth).toBe(130)
+  })
+
+  it('ignores a resize on a column that forbids it', () => {
+    const { grid, harness: h } = setup([{ key: 'a', width: 100, resizable: false }])
+    const cell = h.headerCell('a')
+    grid.registerHeaderCell(cell, 'a')
+
+    grid.startColumnResize('a', new PointerEvent('pointerdown', { clientX: 0 }))
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 40 }))
+
+    expect(cell.style.width).toBe('100px')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+  })
+
+  it('keeps the dragged row inside the range while autoscrolling away', () => {
+    harness = createHarness(500, 100)
+    const grid = createGrid({
+      ...harness,
+      columns: [{ key: 'a', width: 100 }],
+      rowHeight: 20,
+      rowCount: 500,
+      overscan: 0,
+    })
+
+    const row = harness.row(0)
+    grid.registerRow(row, 0)
+    grid.startRowDrag(0, new PointerEvent('pointerdown', { clientY: 0 }))
+
+    harness.verticalScrollbar!.scrollTop = 4_000
+    harness.verticalScrollbar!.dispatchEvent(new Event('scroll'))
+
+    expect(grid.range.start).toBe(0)
+    expect(grid.range.end).toBeGreaterThan(200)
+
+    window.dispatchEvent(new PointerEvent('pointerup'))
+  })
+})

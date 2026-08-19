@@ -112,7 +112,7 @@ export class Grid {
 
   setColumns(columns: ColumnDef[]): void {
     this.columns = columns
-    this.layoutValue = this.computeLayout()
+    this.updateLayout()
     this.apply()
   }
 
@@ -164,7 +164,7 @@ export class Grid {
    */
   startColumnResize(key: ColumnKey, event: PointerEvent): void {
     const column = this.layoutValue.columns.find((item) => item.key === key)
-    if (!column) return
+    if (!column || this.columns.find((item) => item.key === key)?.resizable === false) return
 
     this.resizeSession = { key, startX: event.clientX, startWidth: column.width }
     event.preventDefault()
@@ -184,7 +184,7 @@ export class Grid {
       column.key === session.key ? { ...column, width } : column,
     )
 
-    this.layoutValue = this.computeLayout()
+    this.updateLayout()
     this.apply()
   }
 
@@ -301,11 +301,21 @@ export class Grid {
   }
 
   private updateRange(): void {
-    const next = this.metrics.rangeFor(
+    const window = this.metrics.rangeFor(
       this.scroll.scrollTop,
       this.viewportHeight,
       this.options.overscan,
     )
+
+    // A dragged row must stay rendered even when autoscroll carries the
+    // viewport away from it, otherwise the pointer ends up holding nothing.
+    const dragged = this.dragSession?.from
+    const next = dragged === undefined
+      ? window
+      : {
+          start: Math.min(window.start, dragged),
+          end: Math.max(window.end, dragged + 1),
+        }
 
     if (isSameRange(next, this.rangeValue)) return
 
@@ -327,9 +337,15 @@ export class Grid {
 
   private handleViewportResize(): void {
     this.measureViewport()
-    this.layoutValue = this.computeLayout()
+    this.updateLayout()
     this.updateRange()
     this.apply()
+  }
+
+  /** Recomputes column geometry and tells the caller its sizes moved. */
+  private updateLayout(): void {
+    this.layoutValue = this.computeLayout()
+    this.options.onLayoutChange?.(this.layoutValue)
   }
 
   /** Writes the current geometry into every registered node, synchronously. */

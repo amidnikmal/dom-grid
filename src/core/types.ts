@@ -58,6 +58,8 @@ export interface GridOptions extends GridElements {
   overscan?: number
   minColumnWidth?: number
   onRangeChange?: (range: RowRange) => void
+  /** Fires whenever column geometry changes, including during a resize drag. */
+  onLayoutChange?: (layout: GridLayout) => void
   onRowDragStart?: (index: number) => void
   /** Fires while dragging, whenever the drop position changes. */
   onRowDragMove?: (from: number, to: number) => void
