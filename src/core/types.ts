@@ -51,7 +51,8 @@ export interface GridElements {
 
 export interface GridOptions extends GridElements {
   columns: ColumnDef[]
-  rowHeight: number
+  /** A number for uniform rows, or a function for variable ones. */
+  rowHeight: number | ((index: number) => number)
   rowCount: number
   /** Extra rows rendered beyond the viewport on each side. */
   overscan?: number

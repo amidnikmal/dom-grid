@@ -14,13 +14,21 @@ import {
   type ColumnKey,
   createGrid,
   type Grid,
+  type RowHeightSource,
+  type RowId,
   type RowRange,
+  SelectionModel,
+  type SelectionOptions,
+  type SortDirection,
+  type SortEntry,
+  type SortOptions,
+  SortState,
 } from '../../core/index'
 
 export interface UseGridConfig<Row> {
   columns: () => ColumnDef[]
   rows: () => Row[]
-  rowHeight: () => number
+  rowHeight: () => RowHeightSource
   overscan?: number
   minColumnWidth?: number
   rowKey?: (row: Row, index: number) => string | number
@@ -42,7 +50,7 @@ export interface UseGrid<Row> {
   hScrollRef: Ref<HTMLElement | undefined>
   visibleRows: ComputedRef<VisibleRow<Row>[]>
   contentWidth: Ref<number>
-  contentHeight: ComputedRef<number>
+  contentHeight: Ref<number>
   registerHeaderCell: (element: unknown, key: ColumnKey) => void
   registerRow: (element: unknown, index: number) => void
   registerCell: (element: unknown, index: number, key: ColumnKey) => void
@@ -75,7 +83,14 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
   const range = ref<RowRange>({ start: 0, end: 0 })
   const contentWidth = ref(0)
 
-  const contentHeight = computed(() => config.rows().length * config.rowHeight())
+  const contentHeight = ref(0)
+
+  // Sizes come from the engine: with variable row heights they are not a
+  // multiplication, and only the engine keeps the running totals.
+  const syncSizes = () => {
+    contentWidth.value = grid.value?.contentWidth ?? 0
+    contentHeight.value = grid.value?.contentHeight ?? 0
+  }
 
   const visibleRows = computed<VisibleRow<Row>[]>(() => {
     const rows = config.rows()
@@ -105,21 +120,34 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
       rowCount: config.rows().length,
       overscan: config.overscan,
       minColumnWidth: config.minColumnWidth,
-      onRangeChange: (next) => { range.value = next },
+      // The engine reports a first range from its constructor, before the
+      // instance is assigned, so sizes are read through the ref.
+      onRangeChange: (next) => {
+        range.value = next
+        contentHeight.value = grid.value?.contentHeight ?? contentHeight.value
+      },
       onColumnResize: config.onColumnResize,
     })
 
     grid.value = instance
     range.value = instance.range
-    contentWidth.value = instance.contentWidth
+    syncSizes()
   })
 
   watch(config.columns, (columns) => {
     grid.value?.setColumns(columns)
-    contentWidth.value = grid.value?.contentWidth ?? 0
+    syncSizes()
   })
 
-  watch(() => config.rows().length, (count) => grid.value?.setRowCount(count))
+  watch(() => config.rows().length, (count) => {
+    grid.value?.setRowCount(count)
+    syncSizes()
+  })
+
+  watch(config.rowHeight, (source) => {
+    grid.value?.setRowHeightSource(source)
+    syncSizes()
+  })
 
   onBeforeUnmount(() => {
     grid.value?.destroy()
@@ -139,5 +167,76 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
     registerHeaderCell: (element, key) => grid.value?.registerHeaderCell(asElement(element), key),
     registerRow: (element, index) => grid.value?.registerRow(asElement(element), index),
     registerCell: (element, index, key) => grid.value?.registerCell(asElement(element), index, key),
+  }
+}
+
+/* sorting and selection */
+
+export interface UseSort {
+  entries: Ref<SortEntry[]>
+  toggle: (key: ColumnKey) => void
+  directionOf: (key: ColumnKey) => SortDirection | null
+  priorityOf: (key: ColumnKey) => number | null
+  clear: () => void
+}
+
+/** Reactive wrapper over the sort state. Sorting the data stays with the caller. */
+export function useSort(options: SortOptions = {}): UseSort {
+  const state = new SortState(options)
+  const entries = ref<SortEntry[]>([])
+
+  const sync = () => { entries.value = [...state.value] }
+
+  return {
+    entries,
+    toggle: (key) => { state.toggle(key); sync() },
+    directionOf: (key) => {
+      void entries.value
+      return state.directionOf(key)
+    },
+    priorityOf: (key) => {
+      void entries.value
+      return state.priorityOf(key)
+    },
+    clear: () => { state.clear(); sync() },
+  }
+}
+
+export interface UseSelection {
+  selected: Ref<RowId[]>
+  has: (id: RowId) => boolean
+  toggle: (id: RowId) => void
+  selectRange: (id: RowId, ordered: RowId[]) => void
+  selectAll: (ordered: RowId[]) => void
+  allSelected: (ordered: RowId[]) => boolean
+  someSelected: (ordered: RowId[]) => boolean
+  clear: () => void
+}
+
+/** Reactive wrapper over the selection model. */
+export function useSelection(options: SelectionOptions = {}): UseSelection {
+  const model = new SelectionModel(options)
+  const selected = ref<RowId[]>([])
+
+  const sync = () => { selected.value = model.value }
+
+  return {
+    selected,
+    has: (id) => {
+      void selected.value
+      return model.has(id)
+    },
+    toggle: (id) => { model.toggle(id); sync() },
+    selectRange: (id, ordered) => { model.selectRange(id, ordered); sync() },
+    selectAll: (ordered) => { model.selectAll(ordered); sync() },
+    allSelected: (ordered) => {
+      void selected.value
+      return model.allSelected(ordered)
+    },
+    someSelected: (ordered) => {
+      void selected.value
+      return model.someSelected(ordered)
+    },
+    clear: () => { model.clear(); sync() },
   }
 }

@@ -56,8 +56,28 @@ grid.registerCell(element, rowIndex, 'name')
 | `layout` / `range` / `contentWidth` / `contentHeight` | current geometry |
 | `destroy()` | detach every listener |
 
-Pure helpers are exported too, so layout maths can be used on its own:
-`computeLayout(columns, availableWidth)` and `computeRange(scrollTop, height, rowHeight, rowCount)`.
+Pure helpers are exported too, so the maths can be used on its own: `computeLayout(columns,
+availableWidth)`, `computeRange(...)` and `RowMetrics` for variable row offsets.
+
+## Sorting and selection
+
+The engine does not touch your data, so it tracks state rather than doing the work.
+
+```ts
+import { SortState, SelectionModel } from 'dom-grid'
+
+const sort = new SortState({ multiple: true })
+sort.toggle('name')            // asc -> desc -> unsorted on repeated clicks
+sort.value                     // [{ key: 'name', direction: 'asc' }], click order is priority
+
+const selection = new SelectionModel({ isDisabled: (id) => locked.has(id) })
+selection.toggle(id)
+selection.selectRange(id, visibleIds)   // shift-click, ids in the order shown
+selection.allSelected(visibleIds)
+```
+
+Selection works with row ids rather than indices, so it survives sorting and filtering.
+In Vue both come as `useSort()` and `useSelection()` with the same API, wrapped in refs.
 
 ## Vue
 
@@ -113,7 +133,9 @@ The engine positions nodes but does not style them. Your CSS has to provide:
 - scrollbars as separate scrollable elements with an inner spacer sized from
   `contentWidth` / `contentHeight`.
 
-Row height is uniform. Variable row heights are not supported yet.
+Rows may be uniform or variable: pass a number as `rowHeight`, or a function of the row
+index. A row measured in the DOM can be corrected afterwards with `grid.setRowHeight(index,
+height)`, and everything below shifts within the same task.
 
 ## Working with heavy cells
 

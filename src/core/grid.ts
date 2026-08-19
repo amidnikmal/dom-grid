@@ -1,5 +1,6 @@
 import { computeLayout, DEFAULT_MIN_COLUMN_WIDTH } from './geometry'
 import { NodeRegistry } from './registry'
+import { type RowHeightSource,RowMetrics } from './rows'
 import type {
   ColumnDef,
   ColumnKey,
@@ -8,7 +9,7 @@ import type {
   RowRange,
   ScrollPosition,
 } from './types'
-import { computeRange, isSameRange } from './virtual'
+import { isSameRange } from './virtual'
 
 /**
  * Table geometry engine.
@@ -28,7 +29,7 @@ export class Grid {
   private readonly resizeObserver: ResizeObserver
 
   private columns: ColumnDef[]
-  private rowCount: number
+  private readonly metrics: RowMetrics
   private layoutValue: GridLayout
   private rangeValue: RowRange = { start: 0, end: 0 }
   private scroll: ScrollPosition = { scrollTop: 0, scrollLeft: 0 }
@@ -39,7 +40,7 @@ export class Grid {
   constructor(options: GridOptions) {
     this.options = options
     this.columns = options.columns
-    this.rowCount = options.rowCount
+    this.metrics = new RowMetrics(options.rowHeight, options.rowCount)
 
     this.measureViewport()
     this.layoutValue = this.computeLayout()
@@ -67,7 +68,7 @@ export class Grid {
   }
 
   get contentHeight(): number {
-    return this.rowCount * this.options.rowHeight
+    return this.metrics.totalHeight
   }
 
   get scrollPosition(): ScrollPosition {
@@ -100,9 +101,34 @@ export class Grid {
   }
 
   setRowCount(rowCount: number): void {
-    this.rowCount = rowCount
+    this.metrics.setCount(rowCount)
     this.updateRange()
     this.apply()
+  }
+
+  setRowHeightSource(source: RowHeightSource): void {
+    this.metrics.setSource(source)
+    this.updateRange()
+    this.apply()
+  }
+
+  /**
+   * Overrides the height of one row, typically after measuring it.
+   * Rows below shift accordingly, within the same task.
+   */
+  setRowHeight(index: number, height: number): void {
+    if (!this.metrics.setRowHeight(index, height)) return
+
+    this.updateRange()
+    this.apply()
+  }
+
+  rowOffset(index: number): number {
+    return this.metrics.offsetOf(index)
+  }
+
+  rowHeight(index: number): number {
+    return this.metrics.heightOf(index)
   }
 
   getColumnWidths(): Record<ColumnKey, number> {
@@ -111,7 +137,7 @@ export class Grid {
 
   scrollToRow(index: number): void {
     const scrollbar = this.options.verticalScrollbar
-    if (scrollbar) scrollbar.scrollTop = index * this.options.rowHeight
+    if (scrollbar) scrollbar.scrollTop = this.metrics.offsetOf(index)
   }
 
   /* column resizing */
@@ -173,11 +199,9 @@ export class Grid {
   }
 
   private updateRange(): void {
-    const next = computeRange(
+    const next = this.metrics.rangeFor(
       this.scroll.scrollTop,
       this.viewportHeight,
-      this.options.rowHeight,
-      this.rowCount,
       this.options.overscan,
     )
 
@@ -250,9 +274,9 @@ export class Grid {
   }
 
   private applyRow(element: HTMLElement, index: number): void {
-    const top = index * this.options.rowHeight - this.scroll.scrollTop
+    const top = this.metrics.offsetOf(index) - this.scroll.scrollTop
     element.style.transform = `translateY(${top}px)`
-    element.style.height = `${this.options.rowHeight}px`
+    element.style.height = `${this.metrics.heightOf(index)}px`
   }
 
   destroy(): void {
