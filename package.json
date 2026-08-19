@@ -1,11 +1,20 @@
 {
   "name": "dom-grid",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Table geometry engine: synchronous layout, scrolling, pinned columns, resizing and virtualization over your own markup.",
   "type": "module",
   "license": "MIT",
-  "keywords": ["table", "grid", "virtual-scroll", "layout", "dom", "performance"],
-  "files": ["dist"],
+  "keywords": [
+    "table",
+    "grid",
+    "virtual-scroll",
+    "layout",
+    "dom",
+    "performance"
+  ],
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -34,7 +43,9 @@
     "vue": "^3.4.0"
   },
   "peerDependenciesMeta": {
-    "vue": { "optional": true }
+    "vue": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
