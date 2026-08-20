@@ -52,6 +52,13 @@ export interface VisibleRow<Row> {
   index: number
   id: string | number
   data: Row
+  /**
+   * Position in the recycling pool. Using it as the v-for key keeps the same
+   * DOM nodes alive while the window moves: the framework patches their
+   * content instead of destroying and rebuilding every row on each scroll,
+   * which is what makes fast scrolling flicker.
+   */
+  poolId: number
 }
 
 export interface UseGrid<Row> {
@@ -117,15 +124,25 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
     contentHeight.value = grid.value?.contentHeight ?? 0
   }
 
+  /** Pool size follows the widest window seen so far, so ids stay stable. */
+  const poolSize = ref(1)
+
   const visibleRows = computed<VisibleRow<Row>[]>(() => {
     const rows = config.rows()
     const result: VisibleRow<Row>[] = []
+
+    poolSize.value = Math.max(poolSize.value, range.value.end - range.value.start, 1)
 
     for (let index = range.value.start; index < range.value.end; index++) {
       const data = rows[index]
       if (!data) continue
 
-      result.push({ index, data, id: config.rowKey?.(data, index) ?? index })
+      result.push({
+        index,
+        data,
+        id: config.rowKey?.(data, index) ?? index,
+        poolId: index % poolSize.value,
+      })
     }
 
     return result

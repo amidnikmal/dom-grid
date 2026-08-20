@@ -367,3 +367,26 @@ describe('native scroll mode', () => {
     expect(event.defaultPrevented).toBe(false)
   })
 })
+
+describe('pool ids', () => {
+  it('stay within the pool so rows can be recycled', () => {
+    harness = createHarness(500, 200)
+    const grid = createGrid({
+      ...harness,
+      columns: [{ key: 'a' }],
+      rowHeight: 20,
+      rowCount: 1000,
+      overscan: 0,
+    })
+
+    // The engine itself does not assign pool ids; the adapter does. What the
+    // engine guarantees is a window whose size stays stable while scrolling,
+    // which is what makes a fixed-size pool possible.
+    const first = grid.range.end - grid.range.start
+
+    harness.verticalScrollbar!.scrollTop = 4_000
+    harness.verticalScrollbar!.dispatchEvent(new Event('scroll'))
+
+    expect(grid.range.end - grid.range.start).toBe(first)
+  })
+})

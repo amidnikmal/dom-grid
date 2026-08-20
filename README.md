@@ -125,6 +125,11 @@ const {
 Vue decides which rows and columns exist; the engine places them. Nodes travel through ref
 callbacks, so a re-render never leaves stale positions behind.
 
+Key rows by `row.poolId`, not by the row id. The pool id is the row's slot in a recycling
+pool, so the same DOM nodes stay alive while the window moves and the framework only patches
+their content. Keying by data id instead destroys and rebuilds every row on each scroll,
+which is what makes fast scrolling flicker.
+
 ## Row reordering
 
 ```ts
