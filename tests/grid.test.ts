@@ -453,3 +453,54 @@ describe('recycled nodes', () => {
     expect(cell.style.width).toBe('200px')
   })
 })
+
+describe('registry hand-over', () => {
+  it('does not let a moving node evict whoever took its old place', () => {
+    const { grid, harness: h } = setup()
+    const first = h.row(5)
+    const second = h.row(5)
+
+    grid.registerRow(first, 5)
+
+    // Another node takes index 5 before the first one reports its move.
+    grid.registerRow(second, 5)
+    grid.registerRow(first, 440)
+
+    // Scrolling proves who is still registered: an evicted node stops moving.
+    h.verticalScrollbar!.scrollTop = 40
+    h.verticalScrollbar!.dispatchEvent(new Event('scroll'))
+
+    expect(second.style.transform).toBe('translateY(60px)')
+    expect(first.style.transform).toBe('translateY(8760px)')
+  })
+
+  it('does the same for cells', () => {
+    const { grid, harness: h } = setup()
+    h.row(0)
+    const first = h.cell(0, 'a')
+    const second = h.cell(0, 'a')
+
+    grid.registerCell(first, 0, 'a')
+    grid.registerCell(second, 0, 'a')
+    grid.registerCell(first, 0, 'b')
+
+    // A column change proves who is still registered.
+    grid.setColumns([{ key: 'a', width: 130 }, { key: 'b', width: 210 }])
+
+    expect(second.style.width).toBe('130px')
+    expect(first.style.width).toBe('210px')
+  })
+})
+
+describe('self-check', () => {
+  it('reports no stale records after a node is recycled', () => {
+    const { grid, harness: h } = setup()
+    const row = h.row(5)
+
+    grid.registerRow(row, 5)
+    grid.registerRow(row, 440)
+    grid.registerRow(row, 5)
+
+    expect(grid.staleRecords).toBe(0)
+  })
+})

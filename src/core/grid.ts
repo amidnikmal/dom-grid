@@ -106,6 +106,16 @@ export class Grid {
     return this.options.scrollMode === 'native'
   }
 
+  /** Diagnostics: registered nodes whose place no longer matches. Always 0. */
+  get staleRecords(): number {
+    return this.registry.countStale()
+  }
+
+  /** Diagnostics: width the layout is computed in. */
+  get measuredWidth(): number {
+    return this.viewportWidth
+  }
+
   get scrollPosition(): ScrollPosition {
     return this.scroll
   }

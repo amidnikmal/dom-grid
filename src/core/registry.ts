@@ -34,7 +34,12 @@ export class NodeRegistry {
   setHeaderCell(key: ColumnKey, element: HTMLElement | null): void {
     if (element) {
       const previous = this.headerPlaces.get(element)
-      if (previous !== undefined && previous !== key) this.headerCells.delete(previous)
+      // Only drop the old record if it still points at this very element:
+      // another node may already have taken that place in the same patch, and
+      // ref callbacks inside one patch fire in no guaranteed order.
+      if (previous !== undefined && previous !== key && this.headerCells.get(previous) === element) {
+        this.headerCells.delete(previous)
+      }
 
       this.headerPlaces.set(element, key)
       this.headerCells.set(key, element)
@@ -47,7 +52,9 @@ export class NodeRegistry {
   setRow(index: number, element: HTMLElement | null): void {
     if (element) {
       const previous = this.rowPlaces.get(element)
-      if (previous !== undefined && previous !== index) this.rows.delete(previous)
+      if (previous !== undefined && previous !== index && this.rows.get(previous) === element) {
+        this.rows.delete(previous)
+      }
 
       this.rowPlaces.set(element, index)
       this.rows.set(index, element)
@@ -60,7 +67,9 @@ export class NodeRegistry {
   setCell(rowIndex: number, key: ColumnKey, element: HTMLElement | null): void {
     if (element) {
       const previous = this.cellPlaces.get(element)
-      if (previous && (previous.row !== rowIndex || previous.key !== key)) {
+      const movedOn = previous && (previous.row !== rowIndex || previous.key !== key)
+
+      if (movedOn && this.cells.get(previous.row)?.get(previous.key) === element) {
         this.dropCell(previous.row, previous.key)
       }
 
@@ -91,6 +100,32 @@ export class NodeRegistry {
     this.cells.forEach((row, rowIndex) => {
       row.forEach((element, key) => visit(element, key, rowIndex))
     })
+  }
+
+  /**
+   * Records pointing at an element that has moved elsewhere. Should always be
+   * zero: anything else means a node is positioned by a stale entry, which is
+   * how rows end up drawn far outside the viewport.
+   */
+  countStale(): number {
+    let stale = 0
+
+    this.rows.forEach((element, index) => {
+      if (this.rowPlaces.get(element) !== index) stale++
+    })
+
+    this.headerCells.forEach((element, key) => {
+      if (this.headerPlaces.get(element) !== key) stale++
+    })
+
+    this.cells.forEach((row, rowIndex) => {
+      row.forEach((element, key) => {
+        const place = this.cellPlaces.get(element)
+        if (place?.row !== rowIndex || place?.key !== key) stale++
+      })
+    })
+
+    return stale
   }
 
   clear(): void {
