@@ -1,6 +1,6 @@
 {
   "name": "dom-grid",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Table geometry engine: synchronous layout, scrolling, pinned columns, resizing and virtualization over your own markup.",
   "type": "module",
   "license": "MIT",
