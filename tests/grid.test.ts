@@ -396,3 +396,27 @@ describe('pool ids', () => {
     expect(grid.range.end - grid.range.start).toBe(first)
   })
 })
+
+describe('zero-sized viewport', () => {
+  it('measures again instead of staying empty', async () => {
+    harness = createHarness()
+    // The element has no size yet, as before styles are applied.
+    harness.root.style.height = '0px'
+
+    const grid = createGrid({
+      ...harness,
+      viewport: harness.root,
+      columns: [{ key: 'a' }],
+      rowHeight: 20,
+      rowCount: 100,
+      overscan: 0,
+    })
+
+    expect(grid.range.end).toBe(0)
+
+    harness.root.style.height = '200px'
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+
+    expect(grid.range.end).toBeGreaterThan(0)
+  })
+})

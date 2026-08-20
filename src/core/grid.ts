@@ -448,6 +448,22 @@ export class Grid {
     return computeLayout(columns, this.viewportWidth, this.options.minColumnWidth)
   }
 
+  /**
+   * A zero-sized viewport means the measurement happened before styles
+   * applied. Living with it would leave the table empty, so the size is
+   * taken again on the next frame.
+   */
+  private remeasureFrame = 0
+
+  private scheduleRemeasure(): void {
+    if (this.remeasureFrame || !this.options.root.isConnected) return
+
+    this.remeasureFrame = requestAnimationFrame(() => {
+      this.remeasureFrame = 0
+      this.handleViewportResize()
+    })
+  }
+
   private measureViewport(): void {
     // Scrollbars usually overlay the body, so the space available to columns is
     // smaller than the root: measuring the root would size columns to a width
@@ -455,6 +471,8 @@ export class Grid {
     const rect = (this.options.viewport ?? this.options.root).getBoundingClientRect()
     this.viewportWidth = rect.width
     this.viewportHeight = rect.height
+
+    if (!rect.height || !rect.width) this.scheduleRemeasure()
   }
 
   private handleViewportResize(): void {
@@ -553,6 +571,7 @@ export class Grid {
 
   destroy(): void {
     cancelAnimationFrame(this.rangeFrame)
+    cancelAnimationFrame(this.remeasureFrame)
     this.options.root.removeEventListener('wheel', this.handleWheel)
     this.options.root.removeEventListener('touchstart', this.handleTouchStart)
     this.options.root.removeEventListener('touchmove', this.handleTouchMove)
