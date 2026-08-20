@@ -142,6 +142,16 @@ position and scrolls when the pointer nears an edge. The dragged row carries a
 behaves after a splice, so `rows.splice(to, 0, rows.splice(from, 1)[0])` is all the caller
 has to do.
 
+## Input
+
+Wheel and touch scrolling are handled on the root out of the box, including shift-wheel for
+horizontal movement; the event is only swallowed when the table actually moved, so a table
+scrolled to its end still lets the page scroll. Pass `wheel: false` to opt out.
+
+Columns are laid out in the width of `viewport` (the Vue adapter defaults it to the body,
+`layoutFrom: 'root'` switches back). Measure the element the content actually gets: overlay
+scrollbars make the root wider than the space columns can use.
+
 ## Markup contract
 
 The engine positions nodes but does not style them. Your CSS has to provide:

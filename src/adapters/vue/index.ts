@@ -31,6 +31,13 @@ export interface UseGridConfig<Row> {
   rowHeight: () => RowHeightSource
   overscan?: number
   minColumnWidth?: number
+  /**
+   * Which element's width columns are laid out in. The body is the default
+   * because scrollbars usually overlay it: measuring the root would size
+   * columns to a width the content never gets.
+   */
+  layoutFrom?: 'root' | 'body'
+  wheel?: boolean
   rowKey?: (row: Row, index: number) => string | number
   onColumnResize?: (key: ColumnKey, width: number) => void
   onRowDragStart?: (index: number) => void
@@ -134,8 +141,10 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
       columns: config.columns(),
       rowHeight: config.rowHeight(),
       rowCount: config.rows().length,
+      viewport: config.layoutFrom === 'root' ? rootRef.value : bodyRef.value,
       overscan: config.overscan,
       minColumnWidth: config.minColumnWidth,
+      wheel: config.wheel,
       // The engine reports a first range from its constructor, before the
       // instance is assigned, so sizes are read through the ref.
       onRangeChange: (next) => {

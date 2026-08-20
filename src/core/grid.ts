@@ -66,10 +66,16 @@ export class Grid {
     this.layoutValue = this.computeLayout()
 
     this.resizeObserver = new ResizeObserver(() => this.handleViewportResize())
-    this.resizeObserver.observe(options.root)
+    this.resizeObserver.observe(options.viewport ?? options.root)
 
     options.verticalScrollbar?.addEventListener('scroll', this.handleScroll)
     options.horizontalScrollbar?.addEventListener('scroll', this.handleScroll)
+
+    if (options.wheel !== false) {
+      options.root.addEventListener('wheel', this.handleWheel, { passive: false })
+      options.root.addEventListener('touchstart', this.handleTouchStart, { passive: true })
+      options.root.addEventListener('touchmove', this.handleTouchMove, { passive: false })
+    }
 
     this.updateRange()
     this.apply()
@@ -310,6 +316,71 @@ export class Grid {
     this.autoScrollFrame = requestAnimationFrame(step)
   }
 
+  /* wheel and touch */
+
+  /** Pixel deltas: a wheel may report lines or pages instead. */
+  private static readonly LINE_HEIGHT = 16
+  private static readonly PAGE_HEIGHT = 400
+
+  private toPixels(delta: number, mode: number): number {
+    if (mode === 1) return delta * Grid.LINE_HEIGHT
+    if (mode === 2) return delta * Grid.PAGE_HEIGHT
+
+    return delta
+  }
+
+  private scrollBy(dx: number, dy: number): boolean {
+    const vertical = this.options.verticalScrollbar
+    const horizontal = this.options.horizontalScrollbar
+    let moved = false
+
+    if (vertical && dy) {
+      const before = vertical.scrollTop
+      vertical.scrollTop += dy
+      moved ||= vertical.scrollTop !== before
+    }
+
+    if (horizontal && dx) {
+      const before = horizontal.scrollLeft
+      horizontal.scrollLeft += dx
+      moved ||= horizontal.scrollLeft !== before
+    }
+
+    return moved
+  }
+
+  private readonly handleWheel = (event: WheelEvent): void => {
+    const dy = this.toPixels(event.deltaY, event.deltaMode)
+    const dx = this.toPixels(event.deltaX, event.deltaMode)
+
+    // Shift turns a vertical wheel into horizontal scrolling, as elsewhere.
+    const moved = event.shiftKey && !dx
+      ? this.scrollBy(dy, 0)
+      : this.scrollBy(dx, dy)
+
+    // Only swallow the event when the table actually moved, so a table
+    // scrolled to its end still lets the page scroll.
+    if (moved) event.preventDefault()
+  }
+
+  private touchAnchor: { x: number, y: number } | null = null
+
+  private readonly handleTouchStart = (event: TouchEvent): void => {
+    const touch = event.touches[0]
+    this.touchAnchor = touch ? { x: touch.clientX, y: touch.clientY } : null
+  }
+
+  private readonly handleTouchMove = (event: TouchEvent): void => {
+    const touch = event.touches[0]
+    const anchor = this.touchAnchor
+    if (!touch || !anchor) return
+
+    const moved = this.scrollBy(anchor.x - touch.clientX, anchor.y - touch.clientY)
+    this.touchAnchor = { x: touch.clientX, y: touch.clientY }
+
+    if (moved) event.preventDefault()
+  }
+
   /* scrolling */
 
   private readonly handleScroll = (): void => {
@@ -362,7 +433,10 @@ export class Grid {
   }
 
   private measureViewport(): void {
-    const rect = this.options.root.getBoundingClientRect()
+    // Scrollbars usually overlay the body, so the space available to columns is
+    // smaller than the root: measuring the root would size columns to a width
+    // the content never gets.
+    const rect = (this.options.viewport ?? this.options.root).getBoundingClientRect()
     this.viewportWidth = rect.width
     this.viewportHeight = rect.height
   }
@@ -458,6 +532,9 @@ export class Grid {
   }
 
   destroy(): void {
+    this.options.root.removeEventListener('wheel', this.handleWheel)
+    this.options.root.removeEventListener('touchstart', this.handleTouchStart)
+    this.options.root.removeEventListener('touchmove', this.handleTouchMove)
     cancelAnimationFrame(this.autoScrollFrame)
     window.removeEventListener('pointermove', this.handleDragMove)
     window.removeEventListener('pointerup', this.handleDragEnd)

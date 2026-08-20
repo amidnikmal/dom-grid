@@ -279,3 +279,52 @@ describe('resized widths', () => {
     expect(cell.style.width).toBe('100px')
   })
 })
+
+describe('wheel and touch', () => {
+  it('scrolls on a wheel and swallows the event only when it moved', () => {
+    harness = createHarness(500, 200)
+    createGrid({ ...harness, columns: [{ key: 'a' }], rowHeight: 20, rowCount: 500 })
+
+    const event = new WheelEvent('wheel', { deltaY: 120, cancelable: true })
+    harness.root.dispatchEvent(event)
+
+    expect(harness.verticalScrollbar!.scrollTop).toBe(120)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('lets the page scroll when the table cannot move any further', () => {
+    harness = createHarness(500, 200)
+    createGrid({ ...harness, columns: [{ key: 'a' }], rowHeight: 20, rowCount: 500 })
+
+    const event = new WheelEvent('wheel', { deltaY: -120, cancelable: true })
+    harness.root.dispatchEvent(event)
+
+    expect(harness.verticalScrollbar!.scrollTop).toBe(0)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('turns a shifted wheel into horizontal scrolling', () => {
+    harness = createHarness(500, 200)
+    createGrid({ ...harness, columns: [{ key: 'a' }], rowHeight: 20, rowCount: 500 })
+
+    harness.root.dispatchEvent(new WheelEvent('wheel', { deltaY: 90, shiftKey: true, cancelable: true }))
+
+    expect(harness.horizontalScrollbar!.scrollLeft).toBe(90)
+    expect(harness.verticalScrollbar!.scrollTop).toBe(0)
+  })
+
+  it('lays columns out in the viewport element when one is given', () => {
+    harness = createHarness(500, 200)
+    harness.body.style.cssText = 'position:absolute;left:0;top:0;width:400px;height:200px'
+
+    const grid = createGrid({
+      ...harness,
+      viewport: harness.body,
+      columns: [{ key: 'a' }],
+      rowHeight: 20,
+      rowCount: 10,
+    })
+
+    expect(grid.layout.columns[0]!.width).toBe(400)
+  })
+})

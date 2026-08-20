@@ -41,9 +41,15 @@ export interface ScrollPosition {
 }
 
 export interface GridElements {
-  /** Viewport that clips the table and defines the available width. */
+  /** Viewport that clips the table and receives wheel and touch input. */
   root: HTMLElement
   body: HTMLElement
+  /**
+   * Element whose size defines the space columns are laid out in.
+   * Defaults to root; pass the body when scrollbars overlay it, otherwise
+   * columns are sized to a width the content never actually gets.
+   */
+  viewport?: HTMLElement
   headerRow?: HTMLElement
   verticalScrollbar?: HTMLElement
   horizontalScrollbar?: HTMLElement
@@ -57,6 +63,8 @@ export interface GridOptions extends GridElements {
   /** Extra rows rendered beyond the viewport on each side. */
   overscan?: number
   minColumnWidth?: number
+  /** Wheel and touch scrolling, on by default. */
+  wheel?: boolean
   onRangeChange?: (range: RowRange) => void
   /** Fires whenever column geometry changes, including during a resize drag. */
   onLayoutChange?: (layout: GridLayout) => void
