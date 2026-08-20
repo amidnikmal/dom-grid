@@ -38,6 +38,8 @@ export interface UseGridConfig<Row> {
    */
   layoutFrom?: 'root' | 'body'
   wheel?: boolean
+  /** 'native' puts rows inside a real scrolling container; see GridOptions. */
+  scrollMode?: 'overlay' | 'native'
   rowKey?: (row: Row, index: number) => string | number
   onColumnResize?: (key: ColumnKey, width: number) => void
   onRowDragStart?: (index: number) => void
@@ -137,14 +139,22 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
       body: bodyRef.value,
       headerRow: headerRef.value,
       verticalScrollbar: vScrollRef.value,
-      horizontalScrollbar: hScrollRef.value,
+      // One native scroller drives both axes, so the horizontal ref may be
+      // left unset and the vertical one stands in for it.
+      horizontalScrollbar: hScrollRef.value
+        ?? (config.scrollMode === 'native' ? vScrollRef.value : undefined),
       columns: config.columns(),
       rowHeight: config.rowHeight(),
       rowCount: config.rows().length,
-      viewport: config.layoutFrom === 'root' ? rootRef.value : bodyRef.value,
+      // In native mode the scroller is the viewport: the body is just an
+      // absolutely positioned layer inside it and has no size of its own.
+      viewport: config.layoutFrom === 'root'
+        ? rootRef.value
+        : (config.scrollMode === 'native' ? vScrollRef.value : bodyRef.value),
       overscan: config.overscan,
       minColumnWidth: config.minColumnWidth,
       wheel: config.wheel,
+      scrollMode: config.scrollMode,
       // The engine reports a first range from its constructor, before the
       // instance is assigned, so sizes are read through the ref.
       onRangeChange: (next) => {

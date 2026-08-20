@@ -65,6 +65,17 @@ export interface GridOptions extends GridElements {
   minColumnWidth?: number
   /** Wheel and touch scrolling, on by default. */
   wheel?: boolean
+  /**
+   * How scrolling is produced.
+   *
+   * 'overlay' (default): the caller supplies thin scrollbar strips, and the
+   * engine moves the content with a transform.
+   *
+   * 'native': rows live inside a real scrolling container, so the browser
+   * draws its own scrollbars and handles the wheel. The engine then places
+   * rows at their absolute offsets instead of compensating for the scroll.
+   */
+  scrollMode?: 'overlay' | 'native'
   onRangeChange?: (range: RowRange) => void
   /** Fires whenever column geometry changes, including during a resize drag. */
   onLayoutChange?: (layout: GridLayout) => void

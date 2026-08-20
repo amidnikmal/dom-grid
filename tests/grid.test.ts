@@ -328,3 +328,42 @@ describe('wheel and touch', () => {
     expect(grid.layout.columns[0]!.width).toBe(400)
   })
 })
+
+describe('native scroll mode', () => {
+  it('places rows at their absolute offsets and leaves the body alone', () => {
+    harness = createHarness()
+    const grid = createGrid({
+      ...harness,
+      scrollMode: 'native',
+      columns: [{ key: 'a', width: 100 }],
+      rowHeight: 20,
+      rowCount: 500,
+    })
+
+    const row = harness.row(10)
+    grid.registerRow(row, 10)
+
+    harness.verticalScrollbar!.scrollTop = 60
+    harness.verticalScrollbar!.dispatchEvent(new Event('scroll'))
+
+    // The container scrolls itself, so the row keeps its absolute position.
+    expect(row.style.transform).toBe('translateY(200px)')
+    expect(harness.body.style.transform).toBe('')
+  })
+
+  it('does not intercept the wheel', () => {
+    harness = createHarness()
+    createGrid({
+      ...harness,
+      scrollMode: 'native',
+      columns: [{ key: 'a' }],
+      rowHeight: 20,
+      rowCount: 500,
+    })
+
+    const event = new WheelEvent('wheel', { deltaY: 120, cancelable: true })
+    harness.root.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+  })
+})

@@ -71,7 +71,9 @@ export class Grid {
     options.verticalScrollbar?.addEventListener('scroll', this.handleScroll)
     options.horizontalScrollbar?.addEventListener('scroll', this.handleScroll)
 
-    if (options.wheel !== false) {
+    // A native scroller already handles the wheel; intercepting it would
+    // fight the browser instead of helping.
+    if (options.wheel !== false && options.scrollMode !== 'native') {
       options.root.addEventListener('wheel', this.handleWheel, { passive: false })
       options.root.addEventListener('touchstart', this.handleTouchStart, { passive: true })
       options.root.addEventListener('touchmove', this.handleTouchMove, { passive: false })
@@ -97,6 +99,10 @@ export class Grid {
 
   get contentHeight(): number {
     return this.metrics.totalHeight
+  }
+
+  private get native(): boolean {
+    return this.options.scrollMode === 'native'
   }
 
   get scrollPosition(): ScrollPosition {
@@ -458,7 +464,9 @@ export class Grid {
   apply(): void {
     const { body, headerRow } = this.options
 
-    if (body) body.style.transform = `translateX(${-this.scroll.scrollLeft}px)`
+    // In native mode the container scrolls itself, so only the header, which
+    // sits outside it, has to be nudged.
+    if (body && !this.native) body.style.transform = `translateX(${-this.scroll.scrollLeft}px)`
     if (headerRow) headerRow.style.transform = `translateX(${-this.scroll.scrollLeft}px)`
 
     this.registry.headerCells.forEach((element, key) => this.applyHeaderCell(element, key))
@@ -502,7 +510,7 @@ export class Grid {
   }
 
   private applyRow(element: HTMLElement, index: number): void {
-    const base = this.metrics.offsetOf(index) - this.scroll.scrollTop
+    const base = this.metrics.offsetOf(index) - (this.native ? 0 : this.scroll.scrollTop)
     const top = base + this.dragOffsetOf(index, element)
 
     element.style.transform = `translateY(${top}px)`
@@ -522,7 +530,9 @@ export class Grid {
 
       const rect = this.options.body.getBoundingClientRect()
       const pointerTop = session.pointerY - rect.top - session.offsetInRow
-      return pointerTop - (this.metrics.offsetOf(index) - this.scroll.scrollTop)
+      const base = this.metrics.offsetOf(index) - (this.native ? 0 : this.scroll.scrollTop)
+
+      return pointerTop + (this.native ? this.scroll.scrollTop : 0) - base
     }
 
     element.removeAttribute('data-dragging')
