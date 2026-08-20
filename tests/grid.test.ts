@@ -71,7 +71,7 @@ describe('Grid', () => {
     expect(h.body.style.transform).toBe('translateX(-30px)')
   })
 
-  it('reports a new row range on scroll', () => {
+  it('reports a new row range on scroll', async () => {
     harness = createHarness(500, 200)
     const onRangeChange = vi.fn()
     const grid = createGrid({
@@ -86,8 +86,14 @@ describe('Grid', () => {
     harness.verticalScrollbar!.scrollTop = 400
     harness.verticalScrollbar!.dispatchEvent(new Event('scroll'))
 
+    // The range itself is up to date immediately...
     expect(grid.range.start).toBe(20)
-    expect(onRangeChange).toHaveBeenCalled()
+
+    // ...while the report is coalesced into the next frame, so a burst of
+    // scroll events does not make the framework rebuild the list repeatedly.
+    expect(onRangeChange).not.toHaveBeenCalled()
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    expect(onRangeChange).toHaveBeenCalledWith(grid.range)
   })
 
   it('resizes a column while the pointer moves', () => {

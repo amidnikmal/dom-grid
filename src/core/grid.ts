@@ -56,6 +56,7 @@ export class Grid {
     target: DropTarget
   } | null = null
   private autoScrollFrame = 0
+  private rangeFrame = 0
 
   constructor(options: GridOptions) {
     this.options = options
@@ -422,7 +423,16 @@ export class Grid {
     if (isSameRange(next, this.rangeValue)) return
 
     this.rangeValue = next
-    this.options.onRangeChange?.(next)
+
+    // Positions are written synchronously, but which rows exist is a job for
+    // the framework: a browser delivers scroll events in bursts, and telling
+    // it to rebuild the list several times per frame is wasted work.
+    if (this.rangeFrame) return
+
+    this.rangeFrame = requestAnimationFrame(() => {
+      this.rangeFrame = 0
+      this.options.onRangeChange?.(this.rangeValue)
+    })
   }
 
   /* layout application */
@@ -542,6 +552,7 @@ export class Grid {
   }
 
   destroy(): void {
+    cancelAnimationFrame(this.rangeFrame)
     this.options.root.removeEventListener('wheel', this.handleWheel)
     this.options.root.removeEventListener('touchstart', this.handleTouchStart)
     this.options.root.removeEventListener('touchmove', this.handleTouchMove)
