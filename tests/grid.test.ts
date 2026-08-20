@@ -420,3 +420,36 @@ describe('zero-sized viewport', () => {
     expect(grid.range.end).toBeGreaterThan(0)
   })
 })
+
+describe('recycled nodes', () => {
+  it('hold one place only, so a reused row is positioned once', () => {
+    const { grid, harness: h } = setup()
+    const row = h.row(5)
+
+    // Scrolling down, then back up: the node returns to an index it already
+    // held, so the stale record for the far index now comes later in the
+    // iteration and would win, throwing the row off screen.
+    grid.registerRow(row, 5)
+    grid.registerRow(row, 440)
+    grid.registerRow(row, 5)
+
+    grid.apply()
+
+    expect(row.style.transform).toBe('translateY(100px)')
+  })
+
+  it('does the same for cells', () => {
+    const { grid, harness: h } = setup()
+    const row = h.row(0)
+    const cell = h.cell(0, 'a')
+
+    grid.registerRow(row, 0)
+    grid.registerCell(cell, 0, 'a')
+    expect(cell.style.width).toBe('100px')
+
+    grid.registerCell(cell, 0, 'b')
+    grid.apply()
+
+    expect(cell.style.width).toBe('200px')
+  })
+})

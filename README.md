@@ -49,6 +49,10 @@ grid.registerCell(element, rowIndex, 'name')
 | Method | What it does |
 |---|---|
 | `registerHeaderCell` / `registerRow` / `registerCell` | hand a node over, or pass `null` to drop it |
+
+An element holds exactly one place: registering a recycled node under a new index drops its
+previous record immediately, so a node that comes back to an index it held before is never
+positioned by a stale entry.
 | `setColumns` / `setRowCount` | structure changed |
 | `startColumnResize(key, event)` | begin a drag on a column edge |
 | `startRowDrag(index, event)` | begin dragging a row, reported through `onRowDrop` |
