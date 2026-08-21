@@ -514,11 +514,21 @@ export class Grid {
     // Scrollbars usually overlay the body, so the space available to columns is
     // smaller than the root: measuring the root would size columns to a width
     // the content never gets.
-    const rect = (this.options.viewport ?? this.options.root).getBoundingClientRect()
-    this.viewportWidth = rect.width
-    this.viewportHeight = rect.height
+    const element = this.options.viewport ?? this.options.root
+    const rect = element.getBoundingClientRect()
 
-    if (!rect.height || !rect.width) this.scheduleRemeasure()
+    // A native scroller keeps its scrollbars inside itself, and the client box
+    // is what is left for the content. Measuring the border box instead would
+    // size columns a scrollbar wider than the space they get, and the table
+    // would scroll sideways by those few pixels for no reason at all.
+    const client = this.native
+      ? { width: element.clientWidth, height: element.clientHeight }
+      : { width: 0, height: 0 }
+
+    this.viewportWidth = client.width || rect.width
+    this.viewportHeight = client.height || rect.height
+
+    if (!this.viewportHeight || !this.viewportWidth) this.scheduleRemeasure()
   }
 
   private handleViewportResize(): void {
