@@ -179,8 +179,14 @@ behind the flow.
 
 Give them strips of their own and that disappears: the engine then places pinned cells at
 their offset inside the strip and never touches them again, and holding the strip in place is
-the page's job — `position: sticky` inside the scroller is the usual way, and the browser
-keeps sticky content in step with the scroll it is painting.
+the page's job. A strip can be placed either way:
+
+- **inside the scroller**, held by `position: sticky` — the browser keeps it in step with the
+  scroll it is painting, on both axes;
+- **outside the scroller**, an absolutely positioned layer over the table — then nothing moves
+  it horizontally at all, and the engine offsets its rows by the vertical scroll, the same way
+  it does in overlay mode. Which one a strip is, the engine works out on its own from where
+  the element sits.
 
 ```ts
 createGrid({ root, body, pinnedLeftLayer, pinnedRightLayer, /* ... */ })

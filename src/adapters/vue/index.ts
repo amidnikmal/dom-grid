@@ -75,6 +75,12 @@ export interface UseGrid<Row> {
   visibleRows: ComputedRef<VisibleRow<Row>[]>
   contentWidth: Ref<number>
   contentHeight: Ref<number>
+  /**
+   * Width of each pinned zone. The engine keeps its own strips sized, but a
+   * header built as a second set of strips has to be told.
+   */
+  pinnedLeftWidth: Ref<number>
+  pinnedRightWidth: Ref<number>
   registerHeaderCell: (element: unknown, key: ColumnKey) => void
   registerRow: (element: unknown, index: number, layer?: RowLayer) => void
   registerCell: (element: unknown, index: number, key: ColumnKey) => void
@@ -122,12 +128,16 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
   const contentWidth = ref(0)
 
   const contentHeight = ref(0)
+  const pinnedLeftWidth = ref(0)
+  const pinnedRightWidth = ref(0)
 
   // Sizes come from the engine: with variable row heights they are not a
   // multiplication, and only the engine keeps the running totals.
   const syncSizes = () => {
     contentWidth.value = grid.value?.contentWidth ?? 0
     contentHeight.value = grid.value?.contentHeight ?? 0
+    pinnedLeftWidth.value = grid.value?.layout.leftWidth ?? 0
+    pinnedRightWidth.value = grid.value?.layout.rightWidth ?? 0
   }
 
   /** Pool size follows the widest window seen so far, so ids stay stable. */
@@ -233,6 +243,8 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
     visibleRows,
     contentWidth,
     contentHeight,
+    pinnedLeftWidth,
+    pinnedRightWidth,
     registerHeaderCell: (element, key) => {
       const node = asElement(element)
       withGrid((instance) => instance.registerHeaderCell(node, key))

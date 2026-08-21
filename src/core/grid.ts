@@ -139,7 +139,7 @@ export class Grid {
 
   registerRow(element: HTMLElement | null, index: number, layer: RowLayer = 'flow'): void {
     this.registry.setRow(index, element, layer)
-    if (element) this.applyRow(element, index)
+    if (element) this.applyRow(element, index, layer)
   }
 
   registerCell(element: HTMLElement | null, rowIndex: number, key: ColumnKey): void {
@@ -539,7 +539,7 @@ export class Grid {
 
     this.applyLayers()
     this.registry.headerCells.forEach((element, key) => this.applyHeaderCell(element, key))
-    this.registry.eachRow((element, index) => this.applyRow(element, index))
+    this.registry.eachRow((element, index, layer) => this.applyRow(element, index, layer))
     this.registry.eachCell((element, key) => this.applyCell(element, key))
   }
 
@@ -599,8 +599,23 @@ export class Grid {
     this.applyCell(element, key)
   }
 
-  private applyRow(element: HTMLElement, index: number): void {
-    const base = this.metrics.offsetOf(index) - (this.native ? 0 : this.scroll.scrollTop)
+  /**
+   * Whether the browser moves this strip's rows by itself. A strip placed
+   * outside the scroller does not move at all — which is the point of it, and
+   * the reason its rows have to be told where the scroll has got to.
+   */
+  private layerScrolls(layer: RowLayer): boolean {
+    if (!this.native) return false
+    if (layer === 'flow') return true
+
+    const strip = this.layerOf(layer === 'left' ? 'left' : 'right')
+    const scroller = this.options.viewport ?? this.options.root
+
+    return !strip || scroller.contains(strip)
+  }
+
+  private applyRow(element: HTMLElement, index: number, layer: RowLayer = 'flow'): void {
+    const base = this.metrics.offsetOf(index) - (this.layerScrolls(layer) ? 0 : this.scroll.scrollTop)
     const top = base + this.dragOffsetOf(index, element)
 
     element.style.transform = `translateY(${top}px)`

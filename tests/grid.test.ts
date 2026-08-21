@@ -201,6 +201,37 @@ describe('Grid', () => {
       expect(harness.headerRow!.style.transform).toBe('')
     })
 
+    it('rows of a strip outside the scroller are told where the scroll got to', () => {
+      harness = createHarness()
+      const scroller = harness.verticalScrollbar!
+      // слой живёт рядом со скроллером, а не внутри: браузер его не двигает
+      const pinnedLeftLayer = document.createElement('div')
+      harness.root.append(pinnedLeftLayer)
+
+      const grid = createGrid({
+        ...harness,
+        viewport: scroller,
+        scrollMode: 'native',
+        pinnedLeftLayer,
+        columns: [{ key: 'pin', width: 40, pinned: 'left' }, { key: 'a', width: 200 }],
+        rowHeight: 20,
+        rowCount: 100,
+      })
+
+      const inside = harness.row(5)
+      const outside = document.createElement('div')
+      grid.registerRow(inside, 5)
+      grid.registerRow(outside, 5, 'left')
+
+      scroller.scrollTop = 60
+      scroller.dispatchEvent(new Event('scroll'))
+
+      // поток несёт браузер, поэтому строка стоит на своём месте в полотне
+      expect(inside.style.transform).toBe('translateY(100px)')
+      // а неподвижный слой сам ничего не знает о прокрутке
+      expect(outside.style.transform).toBe('translateY(40px)')
+    })
+
     it('without strips pinned cells still cancel the scroll', () => {
       const { grid, harness: h } = setup([
         { key: 'pin', width: 60, pinned: 'left' },
