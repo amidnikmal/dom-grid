@@ -259,8 +259,7 @@ export class Grid {
    * Reordering the data itself is left to the caller via onRowDrop.
    */
   startRowDrag(index: number, event: PointerEvent): void {
-    const bodyTop = this.options.body.getBoundingClientRect().top
-    const rowTop = bodyTop + this.metrics.offsetOf(index) - this.scroll.scrollTop
+    const rowTop = this.dragOrigin().top + this.metrics.offsetOf(index) - this.scroll.scrollTop
 
     this.dragSession = {
       from: index,
@@ -278,15 +277,32 @@ export class Grid {
     this.apply()
   }
 
+  /**
+   * The element the pointer is measured against: the one that stays put on
+   * screen. With a native scroller that is the viewport, while the body inside
+   * it moves with the content; in overlay mode the body is the one that stays.
+   * Measuring against a moving element would count the scroll twice.
+   */
+  private dragOrigin(): DOMRect {
+    const element = this.native
+      ? (this.options.viewport ?? this.options.root)
+      : this.options.body
+
+    return element.getBoundingClientRect()
+  }
+
+  private contentYOf(pointerY: number): number {
+    return pointerY - this.dragOrigin().top + this.scroll.scrollTop
+  }
+
   private readonly handleDragMove = (event: PointerEvent): void => {
     const session = this.dragSession
     if (!session) return
 
     session.pointerY = event.clientY
 
-    const rect = this.options.body.getBoundingClientRect()
-    const contentY = event.clientY - rect.top + this.scroll.scrollTop
-    const target = dropTargetAt(contentY, this.metrics)
+    const rect = this.dragOrigin()
+    const target = dropTargetAt(this.contentYOf(event.clientY), this.metrics)
 
     if (target.index !== session.target.index || target.half !== session.target.half) {
       session.target = target
@@ -566,11 +582,11 @@ export class Grid {
     if (index === session.from) {
       element.setAttribute('data-dragging', '')
 
-      const rect = this.options.body.getBoundingClientRect()
-      const pointerTop = session.pointerY - rect.top - session.offsetInRow
-      const base = this.metrics.offsetOf(index) - (this.native ? 0 : this.scroll.scrollTop)
+      // Both modes want the row to sit where the pointer holds it; the
+      // difference between content and screen coordinates cancels out.
+      const wanted = this.contentYOf(session.pointerY) - session.offsetInRow
 
-      return pointerTop + (this.native ? this.scroll.scrollTop : 0) - base
+      return wanted - this.metrics.offsetOf(index)
     }
 
     element.removeAttribute('data-dragging')

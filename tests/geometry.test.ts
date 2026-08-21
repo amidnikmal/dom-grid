@@ -62,3 +62,60 @@ describe('computeLayout', () => {
     expect(layout.rightWidth).toBe(80)
   })
 })
+
+describe('sharing space between automatic columns', () => {
+  it('gives what a capped column did not take to the others', () => {
+    // Three columns share 600. An even split would be 200 each, but the first
+    // one may not exceed 50 — the leftover has to go to the other two.
+    const layout = computeLayout([{ key: 'a', maxWidth: 50 }, { key: 'b' }, { key: 'c' }], 600)
+
+    expect(layout.columns.map((column) => column.width)).toEqual([50, 275, 275])
+    expect(layout.flowWidth).toBe(600)
+  })
+
+  it('takes from the others when a column demands a minimum', () => {
+    const layout = computeLayout([{ key: 'a', minWidth: 400 }, { key: 'b' }, { key: 'c' }], 600)
+
+    expect(layout.columns[0]!.width).toBe(400)
+    expect(layout.columns[1]!.width).toBe(100)
+    expect(layout.columns[2]!.width).toBe(100)
+  })
+
+  it('resolves a chain of caps in one go', () => {
+    const layout = computeLayout(
+      [{ key: 'a', maxWidth: 40 }, { key: 'b', maxWidth: 60 }, { key: 'c' }, { key: 'd' }],
+      800,
+    )
+
+    // a and b cap, so c and d divide what is left of 800.
+    expect(layout.columns.map((column) => column.width)).toEqual([40, 60, 350, 350])
+  })
+
+  it('covers every combination of bounds', () => {
+    const layout = computeLayout(
+      [
+        { key: 'plain' },
+        { key: 'min', minWidth: 150 },
+        { key: 'max', maxWidth: 80 },
+        { key: 'both', minWidth: 100, maxWidth: 120 },
+        { key: 'fixed', width: 90 },
+      ],
+      1000,
+    )
+
+    const widths = Object.fromEntries(layout.columns.map((c) => [c.key, c.width]))
+
+    expect(widths.fixed).toBe(90)
+    expect(widths.max).toBe(80)
+    expect(widths.min).toBeGreaterThanOrEqual(150)
+    expect(widths.both).toBeGreaterThanOrEqual(100)
+    expect(widths.both).toBeLessThanOrEqual(120)
+    expect(layout.flowWidth).toBeCloseTo(1000, 5)
+  })
+
+  it('still respects minimums when there is not enough room', () => {
+    const layout = computeLayout([{ key: 'a', minWidth: 300 }, { key: 'b', minWidth: 300 }], 100)
+
+    expect(layout.columns.map((column) => column.width)).toEqual([300, 300])
+  })
+})

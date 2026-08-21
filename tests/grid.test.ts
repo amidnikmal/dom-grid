@@ -504,3 +504,68 @@ describe('self-check', () => {
     expect(grid.staleRecords).toBe(0)
   })
 })
+
+describe('dragging with a native scroller', () => {
+  function nativeHarness() {
+    harness = createHarness(500, 200)
+    // The body sits inside the scroller and moves with the content, the way a
+    // native-mode markup is built.
+    harness.body.style.cssText = 'position:absolute;top:0;left:0'
+    harness.verticalScrollbar!.style.cssText =
+      'position:absolute;inset:0;overflow:auto'
+    harness.verticalScrollbar!.append(harness.body)
+
+    const grid = createGrid({
+      ...harness,
+      viewport: harness.verticalScrollbar,
+      scrollMode: 'native',
+      columns: [{ key: 'a', width: 100 }],
+      rowHeight: 20,
+      rowCount: 500,
+      overscan: 0,
+    })
+
+    return { grid, h: harness }
+  }
+
+  it('finds the row under the pointer once the list is scrolled', () => {
+    const { grid, h } = nativeHarness()
+    const moved: Array<[number, number]> = []
+    h.verticalScrollbar!.scrollTop = 400
+    h.verticalScrollbar!.dispatchEvent(new Event('scroll'))
+
+    const row = h.row(20)
+    grid.registerRow(row, 20)
+
+    const top = h.verticalScrollbar!.getBoundingClientRect().top
+    grid.startRowDrag(20, new PointerEvent('pointerdown', { clientY: top + 5 }))
+
+    // 100px down the viewport is row 25 while the list is scrolled by 400.
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: top + 105 }))
+    window.dispatchEvent(new PointerEvent('pointerup'))
+
+    void moved
+    expect(grid.range.start).toBe(20)
+  })
+
+  it('keeps the dragged row under the pointer', () => {
+    const { grid, h } = nativeHarness()
+    h.verticalScrollbar!.scrollTop = 200
+    h.verticalScrollbar!.dispatchEvent(new Event('scroll'))
+
+    const row = h.row(10)
+    grid.registerRow(row, 10)
+
+    const top = h.verticalScrollbar!.getBoundingClientRect().top
+    // Grab row 10 (content offset 200) at its very top, which is the top of
+    // the viewport once the list is scrolled by 200.
+    grid.startRowDrag(10, new PointerEvent('pointerdown', { clientY: top }))
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: top + 60 }))
+
+    // The pointer moved 60px down, so the row has to sit 60px below where it
+    // was: content offset 260, not 460.
+    expect(row.style.transform).toBe('translateY(260px)')
+
+    window.dispatchEvent(new PointerEvent('pointerup'))
+  })
+})

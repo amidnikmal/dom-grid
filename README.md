@@ -171,6 +171,12 @@ The engine positions nodes but does not style them. Your CSS has to provide:
 - scrollbars as separate scrollable elements with an inner spacer sized from
   `contentWidth` / `contentHeight`.
 
+Pinned columns cancel out the container shift in the scroll handler. With a native scroller
+the browser paints the shift itself, so a fast horizontal fling can show them a frame behind
+the flow. Removing that would mean laying cells out in flow instead of absolutely, so that
+`position: sticky` could hold them — a different positioning model than the one described
+here, and not something the engine can do on its own.
+
 Rows may be uniform or variable: pass a number as `rowHeight`, or a function of the row
 index. A row measured in the DOM can be corrected afterwards with `grid.setRowHeight(index,
 height)`, and everything below shifts within the same task.

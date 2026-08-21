@@ -14,6 +14,44 @@ function isAuto(column: ColumnDef): boolean {
 }
 
 /**
+ * Shares the leftover space between the automatic columns.
+ *
+ * A single division is not enough: a column that hits its minimum or maximum
+ * stops taking part, and what it did not take has to go to the others. Each
+ * pass fixes the columns that clamped and divides the rest again, until every
+ * remaining column fits within its bounds — the usual flex-style resolution.
+ */
+function shareSpace(
+  columns: ColumnDef[],
+  spare: number,
+  minColumnWidth: number,
+): Map<string, number> {
+  const resolved = new Map<string, number>()
+  let free = spare
+  let sharing = [...columns]
+
+  while (sharing.length) {
+    const each = free / sharing.length
+    const clamped = sharing.filter((column) => clampWidth(each, column, minColumnWidth) !== each)
+
+    if (!clamped.length) {
+      sharing.forEach((column) => resolved.set(column.key, each))
+      return resolved
+    }
+
+    clamped.forEach((column) => {
+      const width = clampWidth(each, column, minColumnWidth)
+      resolved.set(column.key, width)
+      free -= width
+    })
+
+    sharing = sharing.filter((column) => !resolved.has(column.key))
+  }
+
+  return resolved
+}
+
+/**
  * Resolves column widths and offsets.
  *
  * A pure function of the column definitions and the available width, so the
@@ -31,15 +69,16 @@ export function computeLayout(
 
   const autoColumns = columns.filter(isAuto)
   const spare = Math.max(availableWidth - explicitWidth, 0)
-  const autoWidth = autoColumns.length ? spare / autoColumns.length : 0
+  const autoWidths = shareSpace(autoColumns, spare, minColumnWidth)
 
   let flowOffset = 0
   let leftOffset = 0
   let rightOffset = 0
 
   const resolved: ColumnLayout[] = columns.map((column) => {
-    const raw = isAuto(column) ? autoWidth : (column.width as number)
-    const width = clampWidth(raw, column, minColumnWidth)
+    const width = isAuto(column)
+      ? (autoWidths.get(column.key) ?? minColumnWidth)
+      : clampWidth(column.width as number, column, minColumnWidth)
 
     let left: number
     if (column.pinned === 'left') {
