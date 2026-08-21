@@ -19,6 +19,7 @@ export type {
   GridLayout,
   GridOptions,
   Pinned,
+  RowLayer,
   RowRange,
   ScrollPosition,
 } from './types'

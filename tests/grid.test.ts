@@ -71,6 +71,151 @@ describe('Grid', () => {
     expect(h.body.style.transform).toBe('translateX(-30px)')
   })
 
+  describe('pinned strips', () => {
+    /** A grid whose pinned columns have strips of their own. */
+    function setupLayers() {
+      harness = createHarness()
+      const pinnedLeftLayer = document.createElement('div')
+      const pinnedRightLayer = document.createElement('div')
+      harness.root.append(pinnedLeftLayer, pinnedRightLayer)
+
+      const grid = createGrid({
+        ...harness,
+        pinnedLeftLayer,
+        pinnedRightLayer,
+        columns: [
+          { key: 'l1', width: 40, pinned: 'left' },
+          { key: 'l2', width: 60, pinned: 'left' },
+          { key: 'a', width: 200 },
+          { key: 'r1', width: 50, pinned: 'right' },
+        ],
+        rowHeight: 20,
+        rowCount: 100,
+        overscan: 0,
+      })
+
+      return { grid, harness: harness!, pinnedLeftLayer, pinnedRightLayer }
+    }
+
+    it('sizes each strip to the columns it holds', () => {
+      const { pinnedLeftLayer, pinnedRightLayer } = setupLayers()
+
+      expect(pinnedLeftLayer.style.width).toBe('100px')
+      expect(pinnedRightLayer.style.width).toBe('50px')
+    })
+
+    it('resizing a pinned column resizes its strip', () => {
+      const { grid, pinnedLeftLayer } = setupLayers()
+
+      grid.setColumns([
+        { key: 'l1', width: 90, pinned: 'left' },
+        { key: 'l2', width: 60, pinned: 'left' },
+        { key: 'a', width: 200 },
+        { key: 'r1', width: 50, pinned: 'right' },
+      ])
+
+      expect(pinnedLeftLayer.style.width).toBe('150px')
+    })
+
+    it('leaves pinned cells where they are while the flow scrolls', () => {
+      const { grid, harness: h } = setupLayers()
+      const left = h.headerCell('l2')
+      const right = h.headerCell('r1')
+      const flowing = h.headerCell('a')
+
+      grid.registerHeaderCell(left, 'l2')
+      grid.registerHeaderCell(right, 'r1')
+      grid.registerHeaderCell(flowing, 'a')
+
+      const before = { left: left.style.transform, right: right.style.transform }
+
+      h.horizontalScrollbar!.scrollLeft = 120
+      h.horizontalScrollbar!.dispatchEvent(new Event('scroll'))
+
+      // A cell inside a strip sits at its offset within that strip and knows
+      // nothing about the scroll: staying put is the strip's job.
+      expect(left.style.transform).toBe('translateX(40px)')
+      expect(right.style.transform).toBe('translateX(0px)')
+      expect(left.style.transform).toBe(before.left)
+      expect(right.style.transform).toBe(before.right)
+
+      // the flow, meanwhile, moves with the container as always
+      expect(h.body.style.transform).toBe('translateX(-120px)')
+    })
+
+    it('rows of a strip follow the vertical scroll like any other', () => {
+      const { grid, harness: h } = setupLayers()
+      const flowRow = h.row(4)
+      const strip = document.createElement('div')
+
+      grid.registerRow(flowRow, 4)
+      grid.registerRow(strip, 4, 'left')
+
+      expect(strip.style.transform).toBe('translateY(80px)')
+
+      h.verticalScrollbar!.scrollTop = 30
+      h.verticalScrollbar!.dispatchEvent(new Event('scroll'))
+
+      expect(strip.style.transform).toBe(flowRow.style.transform)
+      expect(strip.style.transform).toBe('translateY(50px)')
+    })
+
+    it('the same index in three strips keeps three separate places', () => {
+      const { grid } = setupLayers()
+      const flow = document.createElement('div')
+      const left = document.createElement('div')
+      const right = document.createElement('div')
+
+      grid.registerRow(flow, 7)
+      grid.registerRow(left, 7, 'left')
+      grid.registerRow(right, 7, 'right')
+
+      // one element per place, so nothing is left positioned by a stale record
+      expect(grid.staleRecords).toBe(0)
+      expect([flow, left, right].map((row) => row.style.transform))
+        .toEqual(['translateY(140px)', 'translateY(140px)', 'translateY(140px)'])
+    })
+
+    it('a header inside the scroller is left to the browser', () => {
+      harness = createHarness()
+      const scroller = harness.verticalScrollbar!
+      // in native mode the scroller carries the header along with the rows
+      scroller.append(harness.headerRow!)
+
+      const grid = createGrid({
+        ...harness,
+        viewport: scroller,
+        scrollMode: 'native',
+        columns: [{ key: 'a', width: 200 }],
+        rowHeight: 20,
+        rowCount: 100,
+      })
+
+      const cell = harness.headerCell('a')
+      grid.registerHeaderCell(cell, 'a')
+
+      scroller.scrollLeft = 45
+      scroller.dispatchEvent(new Event('scroll'))
+
+      // nudging it here would shift it twice: once by the browser, once by us
+      expect(harness.headerRow!.style.transform).toBe('')
+    })
+
+    it('without strips pinned cells still cancel the scroll', () => {
+      const { grid, harness: h } = setup([
+        { key: 'pin', width: 60, pinned: 'left' },
+        { key: 'a', width: 200 },
+      ])
+      const pinned = h.headerCell('pin')
+      grid.registerHeaderCell(pinned, 'pin')
+
+      h.horizontalScrollbar!.scrollLeft = 25
+      h.horizontalScrollbar!.dispatchEvent(new Event('scroll'))
+
+      expect(pinned.style.transform).toBe('translateX(25px)')
+    })
+  })
+
   it('reports a new row range on scroll', async () => {
     harness = createHarness(500, 200)
     const onRangeChange = vi.fn()

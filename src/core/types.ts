@@ -3,6 +3,12 @@ export type ColumnKey = string
 /** Which edge a column is pinned to, if any. */
 export type Pinned = 'left' | 'right'
 
+/**
+ * Which of the three row strips a node belongs to. Pinned columns may be given
+ * strips of their own, so one row index can have up to three elements.
+ */
+export type RowLayer = 'flow' | 'left' | 'right'
+
 export interface ColumnDef {
   key: ColumnKey
   /** Pixels, or 'auto' to share the leftover space. Defaults to 'auto'. */
@@ -51,6 +57,18 @@ export interface GridElements {
    */
   viewport?: HTMLElement
   headerRow?: HTMLElement
+  /**
+   * Strips holding the pinned columns. Given these, the engine stops cancelling
+   * the horizontal scroll for pinned cells and simply keeps the strips sized:
+   * staying put is then the browser's job, and a fast fling cannot smear the
+   * pinned columns the way a transform written from a scroll event does.
+   *
+   * The strips are expected to hold their own copy of every visible row and to
+   * be kept in place by the page itself, `position: sticky` being the usual
+   * way. Without them pinned cells keep cancelling the scroll as before.
+   */
+  pinnedLeftLayer?: HTMLElement
+  pinnedRightLayer?: HTMLElement
   verticalScrollbar?: HTMLElement
   horizontalScrollbar?: HTMLElement
 }

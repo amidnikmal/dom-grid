@@ -171,11 +171,36 @@ The engine positions nodes but does not style them. Your CSS has to provide:
 - scrollbars as separate scrollable elements with an inner spacer sized from
   `contentWidth` / `contentHeight`.
 
-Pinned columns cancel out the container shift in the scroll handler. With a native scroller
-the browser paints the shift itself, so a fast horizontal fling can show them a frame behind
-the flow. Removing that would mean laying cells out in flow instead of absolutely, so that
-`position: sticky` could hold them — a different positioning model than the one described
-here, and not something the engine can do on its own.
+### Pinned columns
+
+By default pinned columns cancel out the container shift in the scroll handler. With a native
+scroller the browser paints the shift itself, so a fast horizontal fling can show them a frame
+behind the flow.
+
+Give them strips of their own and that disappears: the engine then places pinned cells at
+their offset inside the strip and never touches them again, and holding the strip in place is
+the page's job — `position: sticky` inside the scroller is the usual way, and the browser
+keeps sticky content in step with the scroll it is painting.
+
+```ts
+createGrid({ root, body, pinnedLeftLayer, pinnedRightLayer, /* ... */ })
+```
+
+Each strip holds its own copy of every visible row, so a row index has up to three elements —
+one per strip — and each is registered for what it is:
+
+```ts
+grid.registerRow(element, index)           // the flow
+grid.registerRow(element, index, 'left')   // the left strip
+grid.registerRow(element, index, 'right')  // the right strip
+```
+
+Cells need no such hint: a column is pinned or it is not, and `registerCell` already knows
+which. The engine keeps every strip sized to the columns it holds, including through a resize
+drag. In Vue the strips are `pinnedLeftRef` and `pinnedRightRef`.
+
+A header placed inside the scroller is left alone as well: the browser carries it with the
+rest of the content, and nudging it would shift it twice over.
 
 Rows may be uniform or variable: pass a number as `rowHeight`, or a function of the row
 index. A row measured in the DOM can be corrected afterwards with `grid.setRowHeight(index,

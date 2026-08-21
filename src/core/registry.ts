@@ -1,4 +1,4 @@
-import type { ColumnKey } from './types'
+import type { ColumnKey, RowLayer } from './types'
 
 /**
  * A ref callback is recreated on every render, and the framework calls the
@@ -23,13 +23,33 @@ function isStale(element: HTMLElement | undefined): boolean {
  */
 export class NodeRegistry {
   readonly headerCells = new Map<ColumnKey, HTMLElement>()
-  readonly rows = new Map<number, HTMLElement>()
+  /**
+   * One map per strip: the same row index may be drawn three times over, once
+   * in the flow and once in each pinned strip, and each of those elements has
+   * to be positioned on its own.
+   */
+  private readonly rowLayers = new Map<RowLayer, Map<number, HTMLElement>>()
   private readonly cells = new Map<number, Map<ColumnKey, HTMLElement>>()
 
   /** Where each element is currently registered, to drop its old place. */
   private readonly headerPlaces = new WeakMap<HTMLElement, ColumnKey>()
-  private readonly rowPlaces = new WeakMap<HTMLElement, number>()
+  private readonly rowPlaces = new WeakMap<HTMLElement, { index: number, layer: RowLayer }>()
   private readonly cellPlaces = new WeakMap<HTMLElement, { row: number, key: ColumnKey }>()
+
+  /** Rows of the flow strip, the only ones a caller without pinned strips has. */
+  get rows(): Map<number, HTMLElement> {
+    return this.rowsOf('flow')
+  }
+
+  private rowsOf(layer: RowLayer): Map<number, HTMLElement> {
+    const known = this.rowLayers.get(layer)
+    if (known) return known
+
+    const fresh = new Map<number, HTMLElement>()
+    this.rowLayers.set(layer, fresh)
+
+    return fresh
+  }
 
   setHeaderCell(key: ColumnKey, element: HTMLElement | null): void {
     if (element) {
@@ -49,19 +69,29 @@ export class NodeRegistry {
     if (isStale(this.headerCells.get(key))) this.headerCells.delete(key)
   }
 
-  setRow(index: number, element: HTMLElement | null): void {
+  setRow(index: number, element: HTMLElement | null, layer: RowLayer = 'flow'): void {
+    const rows = this.rowsOf(layer)
+
     if (element) {
       const previous = this.rowPlaces.get(element)
-      if (previous !== undefined && previous !== index && this.rows.get(previous) === element) {
-        this.rows.delete(previous)
+      const movedOn = previous && (previous.index !== index || previous.layer !== layer)
+
+      if (movedOn && this.rowsOf(previous.layer).get(previous.index) === element) {
+        this.rowsOf(previous.layer).delete(previous.index)
       }
 
-      this.rowPlaces.set(element, index)
-      this.rows.set(index, element)
+      this.rowPlaces.set(element, { index, layer })
+      rows.set(index, element)
       return
     }
 
-    if (isStale(this.rows.get(index))) this.rows.delete(index)
+    if (isStale(rows.get(index))) rows.delete(index)
+  }
+
+  eachRow(visit: (element: HTMLElement, index: number, layer: RowLayer) => void): void {
+    this.rowLayers.forEach((rows, layer) => {
+      rows.forEach((element, index) => visit(element, index, layer))
+    })
   }
 
   setCell(rowIndex: number, key: ColumnKey, element: HTMLElement | null): void {
@@ -110,8 +140,9 @@ export class NodeRegistry {
   countStale(): number {
     let stale = 0
 
-    this.rows.forEach((element, index) => {
-      if (this.rowPlaces.get(element) !== index) stale++
+    this.eachRow((element, index, layer) => {
+      const place = this.rowPlaces.get(element)
+      if (place?.index !== index || place?.layer !== layer) stale++
     })
 
     this.headerCells.forEach((element, key) => {
@@ -130,7 +161,7 @@ export class NodeRegistry {
 
   clear(): void {
     this.headerCells.clear()
-    this.rows.clear()
+    this.rowLayers.forEach((rows) => rows.clear())
     this.cells.clear()
   }
 }

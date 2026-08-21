@@ -13,6 +13,8 @@ import type {
   ColumnKey,
   GridLayout,
   GridOptions,
+  Pinned,
+  RowLayer,
   RowRange,
   ScrollPosition,
 } from './types'
@@ -106,6 +108,14 @@ export class Grid {
     return this.options.scrollMode === 'native'
   }
 
+  /** Whether the scroller carries the header itself. */
+  private get headerScrolls(): boolean {
+    const { headerRow, viewport, root } = this.options
+    const scroller = this.native ? (viewport ?? root) : undefined
+
+    return Boolean(headerRow && scroller?.contains(headerRow))
+  }
+
   /** Diagnostics: registered nodes whose place no longer matches. Always 0. */
   get staleRecords(): number {
     return this.registry.countStale()
@@ -127,8 +137,8 @@ export class Grid {
     if (element) this.applyHeaderCell(element, key)
   }
 
-  registerRow(element: HTMLElement | null, index: number): void {
-    this.registry.setRow(index, element)
+  registerRow(element: HTMLElement | null, index: number, layer: RowLayer = 'flow'): void {
+    this.registry.setRow(index, element, layer)
     if (element) this.applyRow(element, index)
   }
 
@@ -519,22 +529,36 @@ export class Grid {
     const { body, headerRow } = this.options
 
     // In native mode the container scrolls itself, so only the header, which
-    // sits outside it, has to be nudged.
+    // sits outside it, has to be nudged. A header placed inside the scroller
+    // is carried by the browser like everything else, and nudging it would
+    // shift it twice over.
     if (body && !this.native) body.style.transform = `translateX(${-this.scroll.scrollLeft}px)`
-    if (headerRow) headerRow.style.transform = `translateX(${-this.scroll.scrollLeft}px)`
+    if (headerRow && !this.headerScrolls) {
+      headerRow.style.transform = `translateX(${-this.scroll.scrollLeft}px)`
+    }
 
+    this.applyLayers()
     this.registry.headerCells.forEach((element, key) => this.applyHeaderCell(element, key))
-    this.registry.rows.forEach((element, index) => this.applyRow(element, index))
+    this.registry.eachRow((element, index) => this.applyRow(element, index))
     this.registry.eachCell((element, key) => this.applyCell(element, key))
   }
 
+  /** The strip a pinned column lives in, if the caller supplied one. */
+  private layerOf(pinned: Pinned): HTMLElement | undefined {
+    return pinned === 'left' ? this.options.pinnedLeftLayer : this.options.pinnedRightLayer
+  }
+
   /**
-   * Pinned columns must stay put while the flow scrolls, so they cancel out the
-   * container shift instead of being moved into a separate scrolling layer.
+   * Pinned columns must stay put while the flow scrolls. Given a strip of their
+   * own they simply sit at their offset inside it and never move; without one
+   * they cancel out the container shift, which is the only thing a single
+   * scrolling layer allows.
    */
   private offsetOf(key: ColumnKey): number | null {
     const column = this.layoutValue.columns.find((item) => item.key === key)
     if (!column) return null
+
+    if (column.pinned && this.layerOf(column.pinned)) return column.left
 
     if (column.pinned === 'left') return this.scroll.scrollLeft + column.left
 
@@ -546,6 +570,18 @@ export class Grid {
     // The flow starts after the left zone, so nothing hides underneath it
     // while the table is scrolled to the very left.
     return this.layoutValue.leftWidth + column.left
+  }
+
+  /**
+   * Strips are only ever sized here. Where they sit is the page's business —
+   * anything the engine wrote would have to be rewritten on every scroll event,
+   * which is exactly the lag the strips exist to avoid.
+   */
+  private applyLayers(): void {
+    const { pinnedLeftLayer, pinnedRightLayer } = this.options
+
+    if (pinnedLeftLayer) pinnedLeftLayer.style.width = `${this.layoutValue.leftWidth}px`
+    if (pinnedRightLayer) pinnedRightLayer.style.width = `${this.layoutValue.rightWidth}px`
   }
 
   private applyCell(element: HTMLElement, key: ColumnKey): void {

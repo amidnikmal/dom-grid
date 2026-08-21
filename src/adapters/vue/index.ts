@@ -16,6 +16,7 @@ import {
   type Grid,
   type RowHeightSource,
   type RowId,
+  type RowLayer,
   type RowRange,
   SelectionModel,
   type SelectionOptions,
@@ -68,11 +69,14 @@ export interface UseGrid<Row> {
   headerRef: Ref<HTMLElement | undefined>
   vScrollRef: Ref<HTMLElement | undefined>
   hScrollRef: Ref<HTMLElement | undefined>
+  /** Strips for the pinned columns; leave unused to keep the single layer. */
+  pinnedLeftRef: Ref<HTMLElement | undefined>
+  pinnedRightRef: Ref<HTMLElement | undefined>
   visibleRows: ComputedRef<VisibleRow<Row>[]>
   contentWidth: Ref<number>
   contentHeight: Ref<number>
   registerHeaderCell: (element: unknown, key: ColumnKey) => void
-  registerRow: (element: unknown, index: number) => void
+  registerRow: (element: unknown, index: number, layer?: RowLayer) => void
   registerCell: (element: unknown, index: number, key: ColumnKey) => void
 }
 
@@ -99,6 +103,8 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
   const headerRef = ref<HTMLElement>()
   const vScrollRef = ref<HTMLElement>()
   const hScrollRef = ref<HTMLElement>()
+  const pinnedLeftRef = ref<HTMLElement>()
+  const pinnedRightRef = ref<HTMLElement>()
 
   const range = ref<RowRange>({ start: 0, end: 0 })
 
@@ -155,6 +161,8 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
       root: rootRef.value,
       body: bodyRef.value,
       headerRow: headerRef.value,
+      pinnedLeftLayer: pinnedLeftRef.value,
+      pinnedRightLayer: pinnedRightRef.value,
       verticalScrollbar: vScrollRef.value,
       // One native scroller drives both axes, so the horizontal ref may be
       // left unset and the vertical one stands in for it.
@@ -220,6 +228,8 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
     headerRef,
     vScrollRef,
     hScrollRef,
+    pinnedLeftRef,
+    pinnedRightRef,
     visibleRows,
     contentWidth,
     contentHeight,
@@ -227,9 +237,9 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
       const node = asElement(element)
       withGrid((instance) => instance.registerHeaderCell(node, key))
     },
-    registerRow: (element, index) => {
+    registerRow: (element, index, layer) => {
       const node = asElement(element)
-      withGrid((instance) => instance.registerRow(node, index))
+      withGrid((instance) => instance.registerRow(node, index, layer))
     },
     registerCell: (element, index, key) => {
       const node = asElement(element)
