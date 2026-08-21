@@ -269,6 +269,28 @@ describe('Grid', () => {
       expect(grid.contentWidth, 'область прокрутки прихватила прижатую зону').toBe(200)
     })
 
+    it('a strip appearing later changes what the scrolling area is', () => {
+      const { grid, harness: h } = setup([
+        { key: 'pin', width: 60, pinned: 'left' },
+        { key: 'a', width: 200 },
+      ])
+      const flowing = h.headerCell('a')
+      grid.registerHeaderCell(flowing, 'a')
+
+      // без полосы поток оставляет место под прижатую зону
+      expect(flowing.style.transform).toBe('translateX(60px)')
+      expect(grid.contentWidth).toBe(260)
+
+      const strip = document.createElement('div')
+      h.root.append(strip)
+      grid.setPinnedLayers(strip, undefined)
+
+      // с полосой область прокрутки — это поток и только он
+      expect(flowing.style.transform).toBe('translateX(0px)')
+      expect(grid.contentWidth).toBe(200)
+      expect(strip.style.width).toBe('60px')
+    })
+
     it('without strips pinned cells still cancel the scroll', () => {
       const { grid, harness: h } = setup([
         { key: 'pin', width: 60, pinned: 'left' },

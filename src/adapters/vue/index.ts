@@ -211,6 +211,13 @@ export function useGrid<Row>(config: UseGridConfig<Row>): UseGrid<Row> {
     pending.length = 0
   })
 
+  // Полосы могут появиться и исчезнуть вместе с колонками, которые в них
+  // лежат: движку об этом надо сказать, иначе он продолжит считать область
+  // прокрутки по старому устройству таблицы.
+  watch([pinnedLeftRef, pinnedRightRef], ([left, right]) => {
+    withGrid((instance) => instance.setPinnedLayers(left, right))
+  })
+
   watch(config.columns, (columns) => {
     grid.value?.setColumns(columns)
     syncSizes()

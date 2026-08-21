@@ -154,6 +154,21 @@ export class Grid {
 
   /* input */
 
+  /**
+   * Strips may come and go with the columns they hold: a pinned column can be
+   * hidden, and the whole side goes away with it. Told about it, the engine
+   * changes what the scrolling area is; left unaware, it would keep reserving
+   * room for a zone that no longer exists.
+   */
+  setPinnedLayers(left?: HTMLElement, right?: HTMLElement): void {
+    if (this.options.pinnedLeftLayer === left && this.options.pinnedRightLayer === right) return
+
+    this.options.pinnedLeftLayer = left
+    this.options.pinnedRightLayer = right
+    this.updateLayout()
+    this.apply()
+  }
+
   setColumns(columns: ColumnDef[]): void {
     this.columns = columns
     this.updateLayout()
