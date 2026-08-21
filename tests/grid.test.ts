@@ -232,6 +232,43 @@ describe('Grid', () => {
       expect(outside.style.transform).toBe('translateY(40px)')
     })
 
+    it('the scrolling area holds the flow alone', () => {
+      const { grid, harness: h } = setupLayers()
+      const flowing = h.headerCell('a')
+      grid.registerHeaderCell(flowing, 'a')
+
+      // ни места под прижатые зоны, ни скрытого под ними куска потока: полоса
+      // прокрутки, которую браузер рисует для этой области, обязана оставаться
+      // между прижатыми колонками
+      expect(flowing.style.transform).toBe('translateX(0px)')
+      expect(grid.contentWidth).toBe(200)
+    })
+
+    it('a pinned column takes no part in sharing the flow space', () => {
+      harness = createHarness(500, 200)
+      const pinnedLeftLayer = document.createElement('div')
+      harness.root.append(pinnedLeftLayer)
+      // ширина области меряется по элементу, а в jsdom она нулевая, поэтому
+      // раскладка проверяется на явных ширинах
+      const grid = createGrid({
+        ...harness,
+        pinnedLeftLayer,
+        columns: [
+          { key: 'pin', width: 40, pinned: 'left' },
+          { key: 'a', width: 120 },
+          { key: 'b', width: 80 },
+        ],
+        rowHeight: 20,
+        rowCount: 10,
+      })
+
+      const layout = grid.layout
+
+      expect(layout.leftWidth, 'прижатая колонка потеряла ширину').toBe(40)
+      expect(layout.flowWidth, 'поток посчитан вместе с прижатой').toBe(200)
+      expect(grid.contentWidth, 'область прокрутки прихватила прижатую зону').toBe(200)
+    })
+
     it('without strips pinned cells still cancel the scroll', () => {
       const { grid, harness: h } = setup([
         { key: 'pin', width: 60, pinned: 'left' },

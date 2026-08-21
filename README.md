@@ -205,6 +205,14 @@ Cells need no such hint: a column is pinned or it is not, and `registerCell` alr
 which. The engine keeps every strip sized to the columns it holds, including through a resize
 drag. In Vue the strips are `pinnedLeftRef` and `pinnedRightRef`.
 
+Strips also change what the scrolling area is. Without them it spans the whole table: the flow
+reserves room for the pinned zones and slides underneath them, so `contentWidth` counts all
+three. With them the area belongs to the flow alone — `contentWidth` is `flowWidth`, columns
+start at the very beginning of it, and a scrollbar the browser draws for that area stays
+between the pinned columns instead of running under them. Place the scrolling element between
+the strips and give every pinned column an explicit width: there is no leftover space for a
+pinned `auto` column to claim a share of, so it falls back to `minColumnWidth`.
+
 A header placed inside the scroller is left alone as well: the browser carries it with the
 rest of the content, and nudging it would shift it twice over.
 

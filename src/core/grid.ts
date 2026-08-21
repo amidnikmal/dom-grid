@@ -95,8 +95,13 @@ export class Grid {
   }
 
   get contentWidth(): number {
-    // Pinned zones sit above the flow, so the scrollable width has to include
-    // them: otherwise the last flow column can never be scrolled into view.
+    // With strips of their own, pinned columns are outside the scrolling area
+    // and take no width from it.
+    if (this.pinnedOutside) return this.layoutValue.flowWidth
+
+    // Otherwise the pinned zones sit above the flow, and the scrollable width
+    // has to include them: otherwise the last flow column can never be
+    // scrolled into view.
     return this.layoutValue.leftWidth + this.layoutValue.flowWidth + this.layoutValue.rightWidth
   }
 
@@ -481,7 +486,12 @@ export class Grid {
         })
       : this.columns
 
-    return computeLayout(columns, this.viewportWidth, this.options.minColumnWidth)
+    return computeLayout(
+      columns,
+      this.viewportWidth,
+      this.options.minColumnWidth,
+      this.pinnedOutside,
+    )
   }
 
   /**
@@ -549,6 +559,16 @@ export class Grid {
   }
 
   /**
+   * Whether pinned columns are drawn in strips of their own. Then the scrolling
+   * area holds the flow and nothing else: it neither reserves room for the
+   * pinned zones nor lets the flow slide underneath them, so the scrollbars the
+   * browser draws for it stay between the pinned columns.
+   */
+  private get pinnedOutside(): boolean {
+    return Boolean(this.options.pinnedLeftLayer || this.options.pinnedRightLayer)
+  }
+
+  /**
    * Pinned columns must stay put while the flow scrolls. Given a strip of their
    * own they simply sit at their offset inside it and never move; without one
    * they cancel out the container shift, which is the only thing a single
@@ -567,8 +587,12 @@ export class Grid {
       return this.scroll.scrollLeft + zoneStart + column.left
     }
 
-    // The flow starts after the left zone, so nothing hides underneath it
-    // while the table is scrolled to the very left.
+    // The scrolling area is the flow's own, so the flow starts at its very
+    // beginning; nothing has to be reserved for the pinned zones.
+    if (this.pinnedOutside) return column.left
+
+    // Otherwise the flow starts after the left zone, so nothing hides
+    // underneath it while the table is scrolled to the very left.
     return this.layoutValue.leftWidth + column.left
   }
 

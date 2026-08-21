@@ -62,12 +62,21 @@ export function computeLayout(
   columns: ColumnDef[],
   availableWidth: number,
   minColumnWidth = DEFAULT_MIN_COLUMN_WIDTH,
+  /**
+   * Pinned columns are drawn outside the scrolling area, so the space being
+   * shared belongs to the flow alone and pinned columns take no part in it.
+   * Such a column needs an explicit width: there is no leftover for it to
+   * claim a share of.
+   */
+  pinnedOutside = false,
 ): GridLayout {
-  const explicitWidth = columns
+  const sharing = pinnedOutside ? columns.filter((column) => !column.pinned) : columns
+
+  const explicitWidth = sharing
     .filter((column) => !isAuto(column))
     .reduce((sum, column) => sum + clampWidth(column.width as number, column, minColumnWidth), 0)
 
-  const autoColumns = columns.filter(isAuto)
+  const autoColumns = sharing.filter(isAuto)
   const spare = Math.max(availableWidth - explicitWidth, 0)
   const autoWidths = shareSpace(autoColumns, spare, minColumnWidth)
 
